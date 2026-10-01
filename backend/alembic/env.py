@@ -11,7 +11,8 @@ config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
-url = get_settings().database_url
+# Callers (e.g. the migration tests) can target another database via config.attributes["url"].
+url = config.attributes.get("url") or get_settings().database_url
 
 
 def run_migrations_offline() -> None:
@@ -23,7 +24,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     engine = create_engine(url, poolclass=pool.NullPool)
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
         with context.begin_transaction():
             context.run_migrations()
 
