@@ -39,6 +39,12 @@ Redis fixed-window limiter per client IP: `RATE_LIMIT_PER_MINUTE` (default 120) 
 API: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy: default-src 'none'` (not on `/docs`), and HSTS when `COOKIE_SECURE=true`. The Next.js app sets nosniff/frame/referrer headers. Terminate TLS in front of both in production.
 
 ## Secrets and logging
+**Audit (October 2026):** the working tree and all pushed history were scanned with `gitleaks` (no findings; the only hits were Next.js build IDs in the gitignored `.next/` folder) plus a pattern search for cloud keys, tokens, private keys, webhooks and URL-embedded credentials. The only credential-like strings are labelled placeholders and test fixtures. CI now runs `gitleaks` on every push.
+
+**Because this repository is public, its placeholder values are public.** `ENVIRONMENT=production` makes the app **refuse to start** if `SECRET_KEY` still contains a placeholder marker (`dev-only`, `change-me`, …); otherwise anyone could forge login tokens. The demo account (`demo@example.com`) exists only when `SEED_DEMO_DATA=true`; keep that off outside local development.
+
+A root `.dockerignore` keeps `.env` files, `.venv`, `node_modules`, `.next` and `.git` out of every image (before it existed, a local `backend/.env` and a 250 MB virtualenv were being copied into the backend image).
+
 No secrets in git: `.env` is ignored, `.env.example` holds clearly-marked dev placeholders. `SECRET_KEY` must be ≥32 chars; generate a real one. Logs are structured JSON, and any field whose name contains password/token/authorization/api_key/secret/cookie/headers is replaced with `[REDACTED]`. Monitor request headers (often credentials) are never logged. API responses mask webhook URLs to host only, because their paths carry secrets. The public status page returns only names, coarse state and incident times: no URLs, headers, bodies or failure reasons.
 
 ## Known limitations

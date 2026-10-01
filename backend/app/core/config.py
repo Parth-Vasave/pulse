@@ -1,7 +1,11 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Values that ship in this (public) repository. Anyone can read them, so they must never sign real tokens.
+_INSECURE_SECRET_MARKERS = ("dev-only", "change-me", "changeme", "not-a-secret")
+_DEV_ENVIRONMENTS = ("development", "test")
 
 
 class Settings(BaseSettings):
@@ -40,6 +44,17 @@ class Settings(BaseSettings):
 
     # Result retention
     check_retention_days: int = 35
+
+    @model_validator(mode="after")
+    def _refuse_insecure_secret_outside_dev(self) -> "Settings":
+        """Fail fast: with a publicly known SECRET_KEY anyone could forge login tokens."""
+        insecure = any(marker in self.secret_key.lower() for marker in _INSECURE_SECRET_MARKERS)
+        if insecure and self.environment.lower() not in _DEV_ENVIRONMENTS:
+            raise ValueError(
+                "SECRET_KEY is a placeholder. Set a strong random value, e.g. "
+                "python -c 'import secrets; print(secrets.token_urlsafe(48))'"
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:
