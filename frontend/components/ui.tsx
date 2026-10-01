@@ -195,10 +195,10 @@ export const textareaClass = inputClass.replace("h-9 ", "py-2 ");
 
 /** Native <dialog>: focus trap, Esc to close and inert background come for free. */
 export function ConfirmDialog({
-  open, title, body, confirmLabel, onConfirm, onCancel, busy,
+  open, title, body, confirmLabel, onConfirm, onCancel, busy, confirmDisabled, children,
 }: {
   open: boolean; title: string; body: string; confirmLabel: string;
-  onConfirm: () => void; onCancel: () => void; busy?: boolean;
+  onConfirm: () => void; onCancel: () => void; busy?: boolean; confirmDisabled?: boolean; children?: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -213,9 +213,10 @@ export function ConfirmDialog({
       <div className="flex flex-col gap-4 p-6">
         <h2 id="dlg-title" className="text-lg font-semibold">{title}</h2>
         <p className="text-sm text-muted">{body}</p>
+        {children}
         <div className="flex justify-end gap-2">
           <Button onClick={onCancel} disabled={busy}>Cancel</Button>
-          <Button variant="danger" onClick={onConfirm} loading={busy}>{confirmLabel}</Button>
+          <Button variant="danger" onClick={onConfirm} loading={busy} disabled={confirmDisabled}>{confirmLabel}</Button>
         </div>
       </div>
     </dialog>

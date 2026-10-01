@@ -19,6 +19,15 @@ Status codes: `201` created · `204` no content · `401` not authenticated · `4
 | `POST /api/auth/logout` | → `204` |
 | `GET /api/auth/me` | → current user |
 
+## Account
+All three re-check the **current password** (wrong password → `403` with `code: "incorrect_password"`, not `401`, so clients don't mistake it for a lost session) and share the strict auth rate limit.
+
+| | |
+|---|---|
+| `POST /api/account/email` | `{new_email, current_password}` → `200` user. `409` if the address is taken, `422` if unchanged |
+| `POST /api/account/password` | `{current_password, new_password(≥10, must differ)}` → `204`. **Signs out every other session**; the caller gets a fresh cookie. API keys keep working |
+| `POST /api/account/delete` | `{current_password}` → `204`. Permanently deletes the user and, by `ON DELETE CASCADE`, all their monitors, results, incidents, channels, notifications and API keys |
+
 ## Monitors
 `POST /api/monitors`
 ```json

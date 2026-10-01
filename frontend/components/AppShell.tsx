@@ -2,9 +2,20 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button, Spinner } from "@/components/ui";
+
+export interface CurrentUser { id: number; email: string; created_at: string }
+interface UserCtx { user: CurrentUser; refresh: () => Promise<void> }
+export const UserContext = createContext<UserCtx | null>(null);
+
+/** The signed-in user, refreshable after account changes (e.g. a new email address). */
+export function useUser(): UserCtx {
+  const ctx = useContext(UserContext);
+  if (!ctx) throw new Error("useUser must be used inside AppShell");
+  return ctx;
+}
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -15,10 +26,14 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+
+  const refresh = useCallback(async () => {
+    setUser(await api<CurrentUser>("/auth/me"));
+  }, []);
 
   useEffect(() => {
-    api<{ email: string }>("/auth/me").then((u) => setEmail(u.email)).catch(() => router.replace("/login"));
+    api<CurrentUser>("/auth/me").then(setUser).catch(() => router.replace("/login"));
   }, [router]);
 
   async function logout() {
@@ -26,11 +41,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  if (!email) return <Spinner label="Checking your session" />;
+  if (!user) return <Spinner label="Checking your session" />;
 
   const active = (href: string) => (href === "/" ? pathname === "/" || pathname.startsWith("/monitors") : pathname.startsWith(href));
 
   return (
+    <UserContext.Provider value={{ user, refresh }}>
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-surface focus:p-2">
         Skip to content
@@ -54,12 +70,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-muted sm:inline">{email}</span>
+            <span className="hidden text-muted sm:inline">{user.email}</span>
             <Button variant="ghost" size="sm" onClick={logout}>Log out</Button>
           </div>
         </div>
       </header>
       <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
     </div>
+    </UserContext.Provider>
   );
 }

@@ -15,6 +15,7 @@ A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an AP
 - Incident engine: pure state machine, DB-enforced deduplication, full timeline
 - Notifications with retry/backoff: email (SMTP), generic webhook, Discord
 - Dashboard (UP / DOWN / PAUSED with icons, heartbeat strips), monitor page (1 h/24 h/7 d/30 d charts: response time, time-weighted availability, errors by cause; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime), incidents page, settings
+- Account settings: change email/password (re-authenticated; a password change signs out other sessions) and delete account; settings organised into Account / Notifications / Status page / API keys
 - Public status page, API keys (hashed, shown once, revocable)
 - Security: Argon2, HttpOnly cookies, tenant isolation, **SSRF protection with DNS-rebinding defence**, rate limiting, security headers, request limits
 - Observability: structured JSON logs, Prometheus metrics, `/health`, `/ready`
@@ -98,9 +99,9 @@ make test            # backend + frontend unit/integration
 make e2e             # Playwright against the running stack
 make lint            # ruff, mypy, eslint, tsc
 ```
-- **Backend (175 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
-- **Frontend (25 tests):** formatting, form parsing, status, heartbeat, banner, timeline, dialog, buttons, toggle, segmented control, copy button and toast components.
-- **Browser E2E:** register → create monitor → fail demo API → incident → restore → resolved, driven through the UI.
+- **Backend (194 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
+- **Frontend (32 tests):** formatting, form parsing, status, heartbeat, banner, timeline, dialog, buttons, toggle, segmented control, copy button and toast components.
+- **Browser E2E (2 specs):** an account flow (change password signs out a second browser, change email, delete account) and the lifecycle flow: register → create monitor → fail demo API → incident → restore → resolved, driven through the UI.
 
 Backend tests need Postgres database `monitor_test` and Redis (`TEST_DATABASE_URL`, `REDIS_URL` override the defaults).
 
@@ -121,6 +122,6 @@ docs/      ARCHITECTURE, SECURITY, API, screenshots
 ```
 
 ## Known limitations & future work
-Verified: backend, worker, scheduler, frontend and the browser E2E were run end-to-end natively against real Postgres and Redis. The Docker images/Compose file are validated with `docker compose config` and built in CI, but were not started on the author's machine, since the Docker daemon was unavailable. No email verification/password reset/MFA yet. Single region.
+Verified: backend, worker, scheduler, frontend and the browser E2E were run end-to-end natively against real Postgres and Redis. The Docker images/Compose file are validated with `docker compose config` and built in CI, but were not started on the author's machine, since the Docker daemon was unavailable. No email verification, password reset or MFA yet. Single region.
 
 Future: multi-region probes · Kubernetes · OpenTelemetry tracing · Grafana dashboards · maintenance windows · multi-step synthetic workflows · browser checks · teams/RBAC/SSO · alert routing and escalation policies · anomaly detection · AI incident summaries · JWT revocation, encrypted secrets at rest.
