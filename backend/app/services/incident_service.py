@@ -7,7 +7,7 @@ duplicate incident. The partial unique index on open incidents is the backstop.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -119,15 +119,51 @@ def _resolve_incident(db: Session, monitor: Monitor, outcome: CheckOutcome, succ
     return ids
 
 
-def record_check(db: Session, monitor_id: int, outcome: CheckOutcome) -> list[int]:
+def reset_health(monitor: Monitor, *, clear_last_check: bool = False) -> None:
+    """Forget accumulated health so the state machine starts fresh (UNKNOWN, no streaks)."""
+    monitor.status = Status.UNKNOWN.value
+    monitor.consecutive_failures = 0
+    monitor.consecutive_successes = 0
+    monitor.last_response_time_ms = None
+    if clear_last_check:
+        monitor.last_checked_at = None
+
+
+def close_open_incident(db: Session, monitor: Monitor, why: str, at: datetime | None = None) -> Incident | None:
+    """End an open incident that was NOT resolved by recovery (monitor paused, or retargeted).
+
+    Deliberately sends no "recovered" notification: nothing recovered, monitoring just stopped
+    being about this outage. The timeline records why.
+    """
+    incident = db.scalars(select(Incident).where(Incident.monitor_id == monitor.id, Incident.status == "open")).first()
+    if incident is None:
+        return None
+    now = at or datetime.now(UTC)
+    incident.status = "resolved"
+    incident.resolved_at = now
+    _add_event(db, incident.id, now, "incident_closed", f"Incident closed: {why}")
+    log.info("incident_closed", extra={"monitor_id": monitor.id, "incident_id": incident.id, "why": why})
+    return incident
+
+
+def record_check(
+    db: Session, monitor_id: int, outcome: CheckOutcome, target: tuple[str, str] | None = None
+) -> list[int]:
     """Persist the result and advance health state. Returns pending notification ids.
 
     The caller commits, then enqueues deliveries. Nothing here talks to Redis, so a
     Redis outage cannot lose a check result or an incident.
+
+    `target` is the (url, method) the check was actually run against. A check that was already in
+    flight when the monitor was paused or pointed at a different API is stale: its result says
+    nothing about the monitor's current configuration, so it is discarded.
     """
     monitor = db.scalars(select(Monitor).where(Monitor.id == monitor_id).with_for_update()).first()
     if monitor is None:
         return []  # deleted while the job was queued
+    if not monitor.enabled or (target is not None and target != (monitor.url, monitor.method)):
+        log.info("stale_check_discarded", extra={"monitor_id": monitor_id})
+        return []
 
     db.add(
         CheckResult(

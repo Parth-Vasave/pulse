@@ -9,8 +9,8 @@ import { PlusIcon, TrashIcon } from "@/components/icons";
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
-export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCancel }: {
-  initial?: FormValues; submitLabel: string;
+export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCancel, editing = false }: {
+  initial?: FormValues; submitLabel: string; editing?: boolean;
   onSubmit: (payload: ReturnType<typeof toPayload>) => Promise<void>; onCancel: () => void;
 }) {
   const [v, setV] = useState<FormValues>(initial);
@@ -35,7 +35,7 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
         <Field label="Name" htmlFor="name"><input {...text("name")} required maxLength={120} placeholder="Production API" /></Field>
         <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
           <Field label="Method" htmlFor="method"><select {...text("method")}>{METHODS.map((m) => <option key={m}>{m}</option>)}</select></Field>
-          <Field label="URL" htmlFor="url" hint="Public http(s) addresses only. Private and internal addresses are blocked."><input {...text("url")} type="url" required placeholder="https://api.example.com/health" /></Field>
+          <Field label="URL" htmlFor="url" hint={editing ? "Public http(s) addresses only. Changing the URL or method resets this monitor’s status and closes any open incident." : "Public http(s) addresses only. Private and internal addresses are blocked."}><input {...text("url")} type="url" required placeholder="https://api.example.com/health" /></Field>
         </div>
         <Field label="Headers" htmlFor="headers" hint="One per line, as Name: value."><textarea {...text("headers")} className={textareaClass} rows={3} placeholder="Authorization: Bearer …" /></Field>
         {v.method !== "GET" && <Field label="Body" htmlFor="body" hint="Sent as-is. Add a Content-Type header for JSON."><textarea {...text("body")} className={textareaClass} rows={4} /></Field>}

@@ -31,7 +31,7 @@ export default function MonitorDetail() {
     setToggling(true);
     try {
       await api(`/monitors/${m.id}`, { method: "PATCH", json: { enabled: !m.enabled } });
-      toast.success(m.enabled ? `Paused ${m.name}` : `Resumed ${m.name}. First check runs in a few seconds.`);
+      toast.success(m.enabled ? `Paused ${m.name}. Any open incident was closed.` : `Resumed ${m.name}. First check runs in a few seconds.`);
       monitor.reload();
     } catch (e) { toast.error(describeError(e)); }
     setToggling(false);

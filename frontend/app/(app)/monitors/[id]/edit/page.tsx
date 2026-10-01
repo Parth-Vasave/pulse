@@ -17,7 +17,7 @@ export default function EditMonitor() {
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title={`Edit ${data.name}`} />
-      <MonitorForm initial={fromMonitor(data)} submitLabel="Save changes" onCancel={() => router.push(`/monitors/${id}`)}
+      <MonitorForm editing initial={fromMonitor(data)} submitLabel="Save changes" onCancel={() => router.push(`/monitors/${id}`)}
         onSubmit={async (payload) => { await api(`/monitors/${id}`, { method: "PATCH", json: payload }); router.push(`/monitors/${id}`); }} />
     </div>
   );

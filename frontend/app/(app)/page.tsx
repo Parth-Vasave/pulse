@@ -24,7 +24,7 @@ export default function Dashboard() {
   async function toggle(m: Monitor) {
     try {
       await api(`/monitors/${m.id}`, { method: "PATCH", json: { enabled: !m.enabled } });
-      toast.success(m.enabled ? `Paused ${m.name}` : `Resumed ${m.name}. First check runs in a few seconds.`);
+      toast.success(m.enabled ? `Paused ${m.name}. Any open incident was closed.` : `Resumed ${m.name}. First check runs in a few seconds.`);
       monitors.reload(); summary.reload();
     } catch (e) { toast.error(describeError(e)); }
   }

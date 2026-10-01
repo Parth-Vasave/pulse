@@ -58,6 +58,21 @@ While DOWN, a failure resets the success streak (recovery must be *consecutive*)
 
 **How are incidents deduplicated?** Three layers: (1) the state machine only emits `OPEN_INCIDENT` on the transition into DOWN; (2) the row lock serialises concurrent checks of one monitor (tested with 4 racing threads → 1 incident); (3) a **partial unique index** `ON incidents(monitor_id) WHERE status = 'open'` makes a duplicate impossible even if the first two were bypassed. The insert uses a savepoint so a violation doesn't poison the transaction.
 
+## Editing and pausing a monitor
+
+An open incident and the UP/DOWN streaks describe *one monitor aimed at one target*. When that stops being true, the state is reset so it can't mislead:
+
+| Change | What happens |
+|---|---|
+| **URL or method edited** | Health state resets to `unknown` (streaks 0, last check cleared). An open incident is **closed** with the timeline entry "Incident closed: the monitor's URL or method was changed". |
+| **Paused** | Same reset and close ("...monitoring was paused"); the last-check time is kept. |
+| **Resumed** | Starts fresh. If the API is still down, a *new* incident opens after the failure threshold. That is honest, because monitoring had stopped. |
+| Name, headers, timeout, thresholds, assertions, expected status | No reset. |
+
+Closing is **not** recovery, so no "recovered" notification is sent and `incidents_resolved_total` is not incremented.
+
+**Race: a check already running during the edit.** The worker records the `(url, method)` it actually checked. `record_check` runs under the monitor's row lock and **discards** the result if the monitor has since been paused or pointed elsewhere (`update_monitor` takes the same lock), so a stale result can never flip a paused monitor to DOWN or attribute the old API's failure to the new one.
+
 ## Timeline
 
 `incident_events` is append-only. When an incident opens, the failing streak is back-filled from `check_results` (first failure, failure #2 …) followed by `incident_created`; later `notification_sent|failed`, `recovery_check`, `recovered`, `incident_resolved` are added. The UI renders this list directly.

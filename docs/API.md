@@ -45,7 +45,7 @@ All three re-check the **current password** (wrong password → `403` with `code
 |---|---|
 | `GET /api/monitors` | list with `uptime_24h` |
 | `GET /api/monitors/heartbeats` | `{monitorId: [bool…]}` last 60 outcomes (oldest first) |
-| `GET/PATCH/DELETE /api/monitors/{id}` | PATCH merges and re-validates; `{"enabled": false}` pauses |
+| `GET/PATCH/DELETE /api/monitors/{id}` | PATCH merges and re-validates; `{"enabled": false}` pauses. Pausing, or changing `url`/`method`, **closes any open incident** (timeline event `incident_closed`, no recovery alert) and resets the monitor's status to `unknown` |
 | `GET /api/monitors/{id}/checks?limit=50&failures_only=false` | recent results |
 | `GET /api/monitors/{id}/stats?range=1h\|24h\|7d\|30d` | summary, 24h/7d/30d uptime, time series |
 

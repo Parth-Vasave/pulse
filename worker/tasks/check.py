@@ -56,6 +56,7 @@ def _execute(monitor_id: int) -> None:
             assertions=list(monitor.assertions or []),
             retries=monitor.check_retries,
         )
+        target = (monitor.url, monitor.method)
     log.info("check_started", extra={"monitor_id": monitor_id})
 
     outcome = run_check(spec)
@@ -66,7 +67,7 @@ def _execute(monitor_id: int) -> None:
         monitor_check_failures_total.labels(outcome.error_type or "unknown").inc()
 
     with session_scope() as db:
-        notification_ids = record_check(db, monitor_id, outcome)
+        notification_ids = record_check(db, monitor_id, outcome, target)
 
     log.info(
         "check_completed",

@@ -9,6 +9,7 @@ from app.core.errors import AppError
 from app.core.logging import get_logger
 from app.models import Monitor, User
 from app.schemas.monitor import MonitorCreate, MonitorUpdate
+from app.services.incident_service import close_open_incident, reset_health
 from app.services.ssrf import SSRFError, validate_url
 
 log = get_logger("app.monitors")
@@ -71,12 +72,25 @@ def update_monitor(db: Session, monitor: Monitor, patch: MonitorUpdate) -> Monit
         ) from exc
     if data.url != monitor.url:
         _check_target(data.url)
+    # Serialise with any check result being recorded for this monitor right now.
+    db.refresh(monitor, with_for_update=True)
     was_enabled = monitor.enabled
+    retargeted = (data.url, data.method) != (monitor.url, monitor.method)
+    pausing = was_enabled and not data.enabled
     for f in _FIELDS:
         setattr(monitor, f, getattr(data, f))
     monitor.assertions = [a.model_dump() for a in data.assertions]
     if data.enabled and not was_enabled:
         monitor.next_check_at = datetime.now(UTC)  # resumed: check right away
+    if retargeted or pausing:
+        # The old UP/DOWN state, streaks and any open incident describe something that no longer
+        # applies. Close the incident (no recovery alert) and start the state machine fresh.
+        why = "the monitor's URL or method was changed" if retargeted else "monitoring was paused"
+        close_open_incident(db, monitor, why)
+        reset_health(monitor, clear_last_check=retargeted)
+        log.info(
+            "monitor_health_reset", extra={"monitor_id": monitor.id, "reason": "retargeted" if retargeted else "paused"}
+        )
     db.commit()
     return monitor
 
