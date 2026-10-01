@@ -8,6 +8,10 @@ const font = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument"
 export const metadata: Metadata = {
   title: { default: "Pulse – API monitoring", template: "%s · Pulse" },
   description: "Monitor your APIs, detect incidents, and get alerted.",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
