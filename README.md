@@ -34,7 +34,7 @@ Next.js 16 · React 19 · TypeScript · Tailwind 4 · Recharts │ Python 3.12 �
 
 ## Quick start (Docker)
 ```bash
-git clone <repository> && cd api-monitoring-incident-detection
+git clone https://github.com/Parth-Vasave/pulse.git && cd pulse
 cp .env.example .env
 docker compose up --build        # or: make dev
 ```
