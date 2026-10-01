@@ -12,7 +12,7 @@ A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an AP
 - Monitors: URL, method (GET/POST/PUT/PATCH/DELETE), headers, JSON/text body, expected status, timeout, interval (30 s–24 h), response-time threshold, failure/recovery thresholds, optional immediate retries on network errors
 - Pluggable response assertions (`body_contains`, `body_not_contains`, `json_field`)
 - Error classification: timeout, DNS, connect, invalid response, unexpected status, HTTP error, assertion failed, slow, blocked target
-- Incident engine: pure state machine, DB-enforced deduplication, full timeline
+- Incident engine: pure state machine, DB-enforced deduplication, full timeline; pausing or re-pointing a monitor closes its open incident and restarts its state (no false recovery alert)
 - Notifications with retry/backoff: email (SMTP), generic webhook, Discord
 - Dashboard (UP / DOWN / PAUSED with icons, heartbeat strips), monitor page (1 h/24 h/7 d/30 d charts: response time, time-weighted availability, errors by cause; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime), incidents page, settings
 - Account settings: change email/password (re-authenticated; a password change signs out other sessions) and delete account; settings organised into Account / Notifications / Status page / API keys
@@ -120,6 +120,12 @@ demo-service/  target API with a fail switch
 infrastructure/  Dockerfiles, Prometheus config
 docs/      ARCHITECTURE, SECURITY, API, screenshots
 ```
+
+## Dependency pinning
+Python dependencies are **pinned with hashes**: edit `backend/requirements.in` (and `requirements-dev.in`), run `make lock`, and commit the generated `requirements.txt` / `requirements-dev.txt`. Docker and CI install only those exact, hash-verified versions, so a build next month is the same build as today. Node dependencies are pinned by `frontend/package-lock.json` (`npm ci`). Infrastructure images use fixed tags (`postgres:16`, `redis:7`, `mailpit:v1.31.3`, `prometheus:v3.15.0`).
+
+## License
+[MIT](LICENSE) (c) 2026 Parth Vasave
 
 ## Known limitations & future work
 Verified on an Apple-silicon (ARM64) machine: `docker compose up` from empty volumes reaches all-healthy in about 25 s (images cached) and seeds the demo data; the full alert loop runs unattended (failure → incident → alert email in Mailpit → recovery → resolved → recovery email); both Playwright specs pass against the Docker stack; and stopping Redis or Postgres for 30–40 s leaves every container running, serves clean `503`s, and resumes checking by itself. The GitHub Actions workflow is written but has not run yet (no remote). No email verification, password reset or MFA yet. Single region.
