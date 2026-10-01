@@ -99,7 +99,7 @@ make e2e             # Playwright against the running stack
 make lint            # ruff, mypy, eslint, tsc
 ```
 - **Backend (175 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
-- **Frontend (18 tests):** formatting, form parsing, status/heartbeat/banner/timeline/dialog components.
+- **Frontend (25 tests):** formatting, form parsing, status, heartbeat, banner, timeline, dialog, buttons, toggle, segmented control, copy button and toast components.
 - **Browser E2E:** register → create monitor → fail demo API → incident → restore → resolved, driven through the UI.
 
 Backend tests need Postgres database `monitor_test` and Redis (`TEST_DATABASE_URL`, `REDIS_URL` override the defaults).

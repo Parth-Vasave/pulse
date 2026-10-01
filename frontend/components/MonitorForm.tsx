@@ -4,7 +4,8 @@ import { useState } from "react";
 import { describeError } from "@/lib/api";
 import { DEFAULTS, toPayload, type FormValues } from "@/lib/monitorForm";
 import type { Assertion } from "@/lib/types";
-import { Button, Card, Field, FormError, inputClass } from "@/components/ui";
+import { Button, Card, Field, FormError, Toggle, inputClass, textareaClass } from "@/components/ui";
+import { PlusIcon, TrashIcon } from "@/components/icons";
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
@@ -36,8 +37,8 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
           <Field label="Method" htmlFor="method"><select {...text("method")}>{METHODS.map((m) => <option key={m}>{m}</option>)}</select></Field>
           <Field label="URL" htmlFor="url" hint="Public http(s) addresses only. Private and internal addresses are blocked."><input {...text("url")} type="url" required placeholder="https://api.example.com/health" /></Field>
         </div>
-        <Field label="Headers" htmlFor="headers" hint="One per line, as Name: value."><textarea {...text("headers")} rows={3} placeholder="Authorization: Bearer …" /></Field>
-        {v.method !== "GET" && <Field label="Body" htmlFor="body" hint="Sent as-is. Add a Content-Type header for JSON."><textarea {...text("body")} rows={4} /></Field>}
+        <Field label="Headers" htmlFor="headers" hint="One per line, as Name: value."><textarea {...text("headers")} className={textareaClass} rows={3} placeholder="Authorization: Bearer …" /></Field>
+        {v.method !== "GET" && <Field label="Body" htmlFor="body" hint="Sent as-is. Add a Content-Type header for JSON."><textarea {...text("body")} className={textareaClass} rows={4} /></Field>}
       </Card>
 
       <Card className="flex flex-col gap-4 p-6">
@@ -72,10 +73,10 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
               ) : (
                 <Field label="Text" htmlFor={`a-val-${i}`}><input id={`a-val-${i}`} className={inputClass} required value={a.value} placeholder='"database": "connected"' onChange={(e) => setAssertion(i, { ...a, value: e.target.value })} /></Field>
               )}
-              <Button type="button" variant="ghost" onClick={() => set("assertions", v.assertions.filter((_, j) => j !== i))}>Remove</Button>
+              <Button variant="danger-ghost" icon={<TrashIcon />} onClick={() => set("assertions", v.assertions.filter((_, j) => j !== i))}>Remove</Button>
             </div>
           ))}
-          <div><Button type="button" onClick={() => set("assertions", [...v.assertions, { type: "body_contains", value: "" }])}>Add response check</Button></div>
+          <div><Button size="sm" icon={<PlusIcon />} onClick={() => set("assertions", [...v.assertions, { type: "body_contains", value: "" }])}>Add response check</Button></div>
         </fieldset>
       </Card>
 
@@ -87,15 +88,15 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
           <Field label="Open an incident after" htmlFor="failure_threshold" hint="Consecutive failed checks (1–10)."><input {...text("failure_threshold")} type="number" min={1} max={10} required /></Field>
           <Field label="Resolve after" htmlFor="recovery_threshold" hint="Consecutive passing checks (1–10)."><input {...text("recovery_threshold")} type="number" min={1} max={10} required /></Field>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={v.show_on_status_page} onChange={(e) => set("show_on_status_page", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
-          Show this monitor on my public status page
-        </label>
+        <div className="flex items-center gap-3 text-sm">
+          <Toggle checked={v.show_on_status_page} onChange={(x) => set("show_on_status_page", x)} label="Show this monitor on my public status page" />
+          <span>Show this monitor on my public status page</span>
+        </div>
       </Card>
 
-      <div className="flex gap-2">
-        <Button type="submit" variant="primary" disabled={busy}>{busy ? "Saving…" : submitLabel}</Button>
-        <Button type="button" onClick={onCancel} disabled={busy}>Cancel</Button>
+      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-canvas/90 px-4 py-3 backdrop-blur">
+        <Button type="submit" variant="primary" loading={busy}>{submitLabel}</Button>
+        <Button onClick={onCancel} disabled={busy}>Cancel</Button>
       </div>
     </form>
   );

@@ -1,32 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Heartbeat } from "@/components/Heartbeat";
 import { HealthBanner } from "@/components/HealthBanner";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Spinner } from "@/components/ui";
+import { PauseIcon, PencilIcon, PlayIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import { useToast } from "@/components/Toast";
+import { Card, ConfirmDialog, EmptyState, ErrorState, IconButton, LinkButton, PageHeader, SkeletonRows, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, describeError } from "@/lib/api";
 import { formatMs, formatPercent, timeAgo } from "@/lib/format";
 import type { DashboardSummary, Monitor } from "@/lib/types";
 
 export default function Dashboard() {
-  const router = useRouter();
+  const toast = useToast();
   const summary = useApi<DashboardSummary>("/dashboard/summary", 10000);
   const monitors = useApi<Monitor[]>("/monitors", 10000);
   const beats = useApi<Record<string, boolean[]>>("/monitors/heartbeats", 10000);
   const [deleting, setDeleting] = useState<Monitor | null>(null);
   const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   async function toggle(m: Monitor) {
-    setActionError(null);
     try {
       await api(`/monitors/${m.id}`, { method: "PATCH", json: { enabled: !m.enabled } });
+      toast.success(m.enabled ? `Paused ${m.name}` : `Resumed ${m.name}. First check runs in a few seconds.`);
       monitors.reload(); summary.reload();
-    } catch (e) { setActionError(describeError(e)); }
+    } catch (e) { toast.error(describeError(e)); }
   }
 
   async function remove() {
@@ -34,26 +34,26 @@ export default function Dashboard() {
     setBusy(true);
     try {
       await api(`/monitors/${deleting.id}`, { method: "DELETE" });
+      toast.success(`Deleted ${deleting.name}`);
       setDeleting(null); monitors.reload(); summary.reload();
-    } catch (e) { setActionError(describeError(e)); setDeleting(null); }
+    } catch (e) { toast.error(describeError(e)); setDeleting(null); }
     setBusy(false);
   }
 
   return (
     <>
       <PageHeader title="Dashboard" sub="Live status of everything you monitor. Refreshes every 10 seconds.">
-        <Button variant="primary" onClick={() => router.push("/monitors/new")}>Add monitor</Button>
+        <LinkButton href="/monitors/new" variant="primary" icon={<PlusIcon />}>Add monitor</LinkButton>
       </PageHeader>
 
       {summary.data ? <HealthBanner s={summary.data} /> : summary.error ? <ErrorState message="Could not load the summary." onRetry={summary.reload} /> : <Spinner />}
-      {actionError && <div className="mt-4"><ErrorState message={actionError} /></div>}
 
       <Card className="mt-6 overflow-hidden">
-        {monitors.loading && !monitors.data ? <Spinner label="Loading monitors" /> :
+        {monitors.loading && !monitors.data ? <SkeletonRows rows={5} /> :
          monitors.error && !monitors.data ? <div className="p-4"><ErrorState message="Could not load monitors." onRetry={monitors.reload} /></div> :
          monitors.data?.length === 0 ? (
           <EmptyState title="Monitor your first API" body="Add a URL and Pulse checks it on a schedule, opens an incident when it fails repeatedly, and alerts you when it recovers."
-            action={<Button variant="primary" onClick={() => router.push("/monitors/new")}>Add monitor</Button>} />
+            action={<LinkButton href="/monitors/new" variant="primary" icon={<PlusIcon />}>Add monitor</LinkButton>} />
          ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[56rem] text-left text-sm">
@@ -82,10 +82,13 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">{formatMs(m.last_response_time_ms)}</td>
                     <td className="px-4 py-3 text-muted">{timeAgo(m.last_checked_at)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" onClick={() => toggle(m)} aria-label={`${m.enabled ? "Pause" : "Resume"} ${m.name}`}>{m.enabled ? "Pause" : "Resume"}</Button>
-                        <Button variant="ghost" onClick={() => router.push(`/monitors/${m.id}/edit`)} aria-label={`Edit ${m.name}`}>Edit</Button>
-                        <Button variant="ghost" className="text-down" onClick={() => setDeleting(m)} aria-label={`Delete ${m.name}`}>Delete</Button>
+                      <div className="flex justify-end gap-0.5">
+                        <IconButton label={`${m.enabled ? "Pause" : "Resume"} ${m.name}`} onClick={() => toggle(m)}>
+                          {m.enabled ? <PauseIcon /> : <PlayIcon />}
+                        </IconButton>
+                        <Link href={`/monitors/${m.id}/edit`} aria-label={`Edit ${m.name}`} title={`Edit ${m.name}`}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-paused-bg hover:text-ink"><PencilIcon /></Link>
+                        <IconButton label={`Delete ${m.name}`} variant="danger-ghost" onClick={() => setDeleting(m)}><TrashIcon /></IconButton>
                       </div>
                     </td>
                   </tr>

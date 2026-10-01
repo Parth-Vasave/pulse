@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Spinner } from "@/components/ui";
+import { Button, Spinner } from "@/components/ui";
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-muted sm:inline">{email}</span>
-            <button onClick={logout} className="rounded-md px-2 py-1 text-muted hover:text-ink">Log out</button>
+            <Button variant="ghost" size="sm" onClick={logout}>Log out</Button>
           </div>
         </div>
       </header>

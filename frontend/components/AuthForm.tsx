@@ -48,7 +48,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             <input id="password" name="password" type="password" required minLength={isLogin ? 1 : 10}
               autoComplete={isLogin ? "current-password" : "new-password"} aria-describedby={isLogin ? undefined : "password-hint"} className={inputClass} />
           </Field>
-          <Button type="submit" variant="primary" disabled={busy}>{busy ? "Please wait…" : isLogin ? "Log in" : "Create account"}</Button>
+          <Button type="submit" variant="primary" loading={busy} className="mt-1 w-full">{isLogin ? "Log in" : "Create account"}</Button>
         </form>
         <p className="mt-6 text-sm text-muted">
           {isLogin ? "New here? " : "Already have an account? "}

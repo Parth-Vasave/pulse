@@ -15,7 +15,7 @@ test("register → monitor → failure → incident → recovery → resolved", 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByText("No monitors yet")).toBeVisible();
 
-  await page.getByRole("button", { name: "Add monitor" }).first().click();
+  await page.getByRole("link", { name: "Add monitor" }).first().click();
   await page.getByLabel("Name").fill("Demo switch");
   await page.getByLabel("URL").fill(`${TARGET}/switch`);
   await page.getByLabel("Check every (seconds)").fill("30");

@@ -1,13 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { AvailabilityChart, ErrorRateChart, ResponseTimeChart } from "@/components/Charts";
 import { Stat } from "@/components/Stat";
 import { StatusBadge } from "@/components/StatusBadge";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Spinner } from "@/components/ui";
+import { ArrowLeftIcon, PauseIcon, PencilIcon, PlayIcon, RefreshIcon } from "@/components/icons";
+import { useToast } from "@/components/Toast";
+import { Button, Card, EmptyState, ErrorState, LinkButton, PageHeader, SegmentedControl, Spinner } from "@/components/ui";
+import Link from "next/link";
 import { useApi } from "@/hooks/useApi";
+import { api, describeError } from "@/lib/api";
 import { ERROR_LABELS, formatDuration, formatMs, formatPercent, formatTime, timeAgo } from "@/lib/format";
 import type { CheckResult, Monitor, MonitorStats, TimeRange } from "@/lib/types";
 
@@ -18,9 +21,21 @@ const RANGES: { value: TimeRange; label: string }[] = [
 export default function MonitorDetail() {
   const { id } = useParams<{ id: string }>();
   const [range, setRange] = useState<TimeRange>("24h");
+  const [toggling, setToggling] = useState(false);
+  const toast = useToast();
   const monitor = useApi<Monitor>(`/monitors/${id}`, 10000);
   const stats = useApi<MonitorStats>(`/monitors/${id}/stats?range=${range}`, 15000);
   const checks = useApi<CheckResult[]>(`/monitors/${id}/checks?limit=50`, 10000);
+
+  async function togglePaused(m: Monitor) {
+    setToggling(true);
+    try {
+      await api(`/monitors/${m.id}`, { method: "PATCH", json: { enabled: !m.enabled } });
+      toast.success(m.enabled ? `Paused ${m.name}` : `Resumed ${m.name}. First check runs in a few seconds.`);
+      monitor.reload();
+    } catch (e) { toast.error(describeError(e)); }
+    setToggling(false);
+  }
 
   if (monitor.loading && !monitor.data) return <Spinner />;
   if (monitor.error || !monitor.data) return <ErrorState message="This monitor could not be found." onRetry={monitor.reload} />;
@@ -29,10 +44,11 @@ export default function MonitorDetail() {
 
   return (
     <>
-      <p className="mb-2 text-sm"><Link href="/" className="text-muted hover:text-ink">← Dashboard</Link></p>
+      <p className="mb-2 text-sm"><Link href="/" className="inline-flex items-center gap-1.5 text-muted hover:text-ink"><ArrowLeftIcon width={14} height={14} />Dashboard</Link></p>
       <PageHeader title={m.name} sub={`${m.method} ${m.url}`}>
         <StatusBadge status={m.display_status} />
-        <Link href={`/monitors/${m.id}/edit`} className="rounded-md border border-line bg-surface px-3.5 py-2 text-sm font-medium hover:bg-paused-bg">Edit</Link>
+        <Button onClick={() => togglePaused(m)} loading={toggling} icon={m.enabled ? <PauseIcon /> : <PlayIcon />}>{m.enabled ? "Pause" : "Resume"}</Button>
+        <LinkButton href={`/monitors/${m.id}/edit`} icon={<PencilIcon />}>Edit</LinkButton>
       </PageHeader>
 
       <dl className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -44,12 +60,7 @@ export default function MonitorDetail() {
 
       <div className="mb-4 mt-8 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Performance</h2>
-        <div role="group" aria-label="Time range" className="flex gap-1 rounded-lg border border-line bg-surface p-1">
-          {RANGES.map((r) => (
-            <button key={r.value} onClick={() => setRange(r.value)} aria-pressed={range === r.value}
-              className={`rounded-md px-3 py-1 text-sm ${range === r.value ? "bg-accent text-accent-ink" : "text-muted hover:text-ink"}`}>{r.label}</button>
-          ))}
-        </div>
+        <SegmentedControl label="Time range" value={range} onChange={setRange} options={RANGES} />
       </div>
 
       {stats.error && !stats.data ? <ErrorState message="Could not load statistics." onRetry={stats.reload} /> : (
@@ -95,7 +106,7 @@ export default function MonitorDetail() {
           </div>
         )}
       </Card>
-      <div className="mt-4"><Button variant="ghost" onClick={() => { monitor.reload(); stats.reload(); checks.reload(); }}>Refresh now</Button></div>
+      <div className="mt-4"><Button variant="ghost" size="sm" icon={<RefreshIcon />} onClick={() => { monitor.reload(); stats.reload(); checks.reload(); }}>Refresh now</Button></div>
     </>
   );
 }
