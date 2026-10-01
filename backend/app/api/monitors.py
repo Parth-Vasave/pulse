@@ -21,7 +21,7 @@ def create(data: MonitorCreate, user: User = Depends(get_current_user), db: Sess
 @router.get("", response_model=list[MonitorOut])
 def list_monitors(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     monitors = db.scalars(select(Monitor).where(Monitor.user_id == user.id).order_by(Monitor.name)).all()
-    uptime = stats.uptime_24h_by_monitor(db, [m.id for m in monitors])
+    uptime = stats.uptime_24h_by_monitor(db, list(monitors))
     return [_out(m, uptime.get(m.id)) for m in monitors]
 
 
@@ -33,13 +33,13 @@ def heartbeats(user: User = Depends(get_current_user), db: Session = Depends(get
 
 @router.get("/{monitor_id}", response_model=MonitorOut)
 def get_monitor(monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
-    return _out(monitor, stats.uptime_windows(db, monitor.id)["24h"])
+    return _out(monitor, stats.uptime_windows(db, monitor)["24h"])
 
 
 @router.patch("/{monitor_id}", response_model=MonitorOut)
 def update(patch: MonitorUpdate, monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
     monitor = monitor_service.update_monitor(db, monitor, patch)
-    return _out(monitor, stats.uptime_windows(db, monitor.id)["24h"])
+    return _out(monitor, stats.uptime_windows(db, monitor)["24h"])
 
 
 @router.delete("/{monitor_id}", status_code=204)
@@ -67,12 +67,12 @@ def monitor_stats(
     db: Session = Depends(get_db),
 ):
     window = stats.RANGES[range][0]
-    summary = stats.summary(db, monitor.id, window)
+    summary = stats.summary(db, monitor, window)
     return {
         "range": range,
         "summary": summary,
-        "uptime": stats.uptime_windows(db, monitor.id),
-        "series": stats.series(db, monitor.id, range),
+        "uptime": stats.uptime_windows(db, monitor),
+        "series": stats.series(db, monitor, range),
     }
 
 

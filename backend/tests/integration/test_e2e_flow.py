@@ -79,7 +79,8 @@ def test_full_incident_lifecycle(client, db, target):
 
     stats = client.get(f"/api/monitors/{mid}/stats", params={"range": "1h"}).json()
     assert stats["summary"]["total_checks"] == 7 and stats["summary"]["successful_checks"] == 4
-    assert stats["summary"]["uptime_percentage"] == round(4 / 7 * 100, 3)
+    assert 0 < stats["summary"]["uptime_percentage"] < 100  # time-weighted; exact maths in test_metrics.py
+    assert sum(p["errors"].get("http_error", 0) for p in stats["series"]) == 3
     assert stats["summary"]["p95_response_time_ms"] is not None and stats["uptime"]["24h"] is not None
     assert len(client.get(f"/api/monitors/{mid}/checks").json()) == 7
     assert len(client.get(f"/api/monitors/{mid}/checks", params={"failures_only": True}).json()) == 3

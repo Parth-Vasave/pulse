@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatMs } from "@/lib/format";
+import { ERROR_SERIES, errorBreakdown, formatMs } from "@/lib/format";
 import type { SeriesPoint, TimeRange } from "@/lib/types";
 
 const axis = { stroke: "var(--muted)", fontSize: 12, tickLine: false, axisLine: false } as const;
@@ -96,21 +96,56 @@ export function AvailabilityChart({ data, range }: { data: SeriesPoint[]; range:
 }
 
 export function ErrorRateChart({ data, range }: { data: SeriesPoint[]; range: TimeRange }) {
-  const fmt = (v: number) => `${v}%`;
+  const fmt = (v: number) => `${Number(v.toFixed(1))}%`;
+  const rows = data.map((p) => ({ timestamp: p.timestamp, total: p.error_rate, checks: p.checks, ...errorBreakdown(p.errors, p.checks) }));
+  const present = ERROR_SERIES.filter((s) => rows.some((r) => (((r as Record<string, unknown>)[s.key] as number | undefined) ?? 0) > 0));
+  const hasErrors = present.length > 0;
+
   return (
-    <ChartCard title="Error rate" description="Share of checks that failed"
-      table={<DataTable header={["Time", "Error rate"]} rows={data.map((p) => [new Date(p.timestamp).toLocaleString(), fmt(p.error_rate)])} />}>
+    <ChartCard title="Errors by cause" description="Share of checks that failed, split by what went wrong"
+      table={<DataTable header={["Time", "Error rate (by cause)"]} rows={data.map((p) => [new Date(p.timestamp).toLocaleString(),
+        p.error_rate === 0 ? "0%" : `${fmt(p.error_rate)} (${Object.entries(p.errors).map(([k, v]) => `${k}: ${v}`).join(", ")})`])} />}>
       {data.length === 0 ? empty : (
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="var(--line)" vertical={false} />
-            <XAxis dataKey="timestamp" tickFormatter={tick(range)} {...axis} minTickGap={32} />
-            <YAxis domain={[0, 100]} tickFormatter={fmt} width={48} {...axis} />
-            <Tooltip content={<Tip fmt={fmt} />} cursor={{ fill: "var(--paused-bg)" }} />
-            <Bar dataKey="error_rate" fill="var(--down)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="flex h-full flex-col">
+          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="Legend">
+            {hasErrors ? present.map((s) => (
+              <li key={s.key} className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `var(--err-${s.key})` }} aria-hidden />{s.label}</li>
+            )) : <li>No failed checks in this period.</li>}
+          </ul>
+          <div className="min-h-0 flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="timestamp" tickFormatter={tick(range)} {...axis} minTickGap={32} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={48} {...axis} />
+                <Tooltip content={<BreakdownTip />} cursor={{ fill: "var(--paused-bg)" }} />
+                {ERROR_SERIES.map((s, i) => (
+                  <Bar key={s.key} dataKey={s.key} stackId="e" fill={`var(--err-${s.key})`} stroke="var(--surface)" strokeWidth={2}
+                    radius={i === ERROR_SERIES.length - 1 ? [3, 3, 0, 0] : 0} isAnimationActive={false} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       )}
     </ChartCard>
+  );
+}
+
+function BreakdownTip({ active, payload, label }: { active?: boolean; payload?: { dataKey: string; value: number; payload: { total: number; checks: number } }[]; label?: string }) {
+  if (!active || !payload?.length || label == null) return null;
+  const { total, checks } = payload[0].payload;
+  const parts = payload.filter((p) => p.value > 0);
+  return (
+    <div className="rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm">
+      <div className="text-muted">{new Date(label).toLocaleString()}</div>
+      <div className="mt-0.5 text-sm font-semibold">{Number(total.toFixed(1))}% of {checks} {checks === 1 ? "check" : "checks"} failed</div>
+      {parts.map((p) => (
+        <div key={p.dataKey} className="mt-0.5 flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: `var(--err-${p.dataKey})` }} aria-hidden />
+          {ERROR_SERIES.find((s) => s.key === p.dataKey)?.label}: {Number(p.value.toFixed(1))}%
+        </div>
+      ))}
+    </div>
   );
 }

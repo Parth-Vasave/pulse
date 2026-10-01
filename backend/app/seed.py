@@ -37,7 +37,7 @@ MONITORS: list[tuple[str, str, int, dict[str, Any]]] = [
 
 def _history(db, monitor: Monitor, base_ms: int, fail_rate: float, always_fail: bool, now: datetime) -> None:
     rng = random.Random(monitor.id)  # noqa: S311  (deterministic fake data)
-    step = timedelta(minutes=5)
+    step = timedelta(seconds=monitor.interval_seconds)  # history looks like what the worker would have recorded
     t = now - timedelta(hours=24)
     rows = []
     while t < now - timedelta(minutes=1):

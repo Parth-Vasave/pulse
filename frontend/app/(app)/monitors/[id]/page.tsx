@@ -8,7 +8,7 @@ import { Stat } from "@/components/Stat";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button, Card, EmptyState, ErrorState, PageHeader, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import { ERROR_LABELS, formatMs, formatPercent, formatTime, timeAgo } from "@/lib/format";
+import { ERROR_LABELS, formatDuration, formatMs, formatPercent, formatTime, timeAgo } from "@/lib/format";
 import type { CheckResult, Monitor, MonitorStats, TimeRange } from "@/lib/types";
 
 const RANGES: { value: TimeRange; label: string }[] = [
@@ -55,7 +55,7 @@ export default function MonitorDetail() {
       {stats.error && !stats.data ? <ErrorState message="Could not load statistics." onRetry={stats.reload} /> : (
         <>
           <dl className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <Stat label={`Uptime (${range})`} value={formatPercent(s?.uptime_percentage)} hint={s ? `${s.successful_checks} of ${s.total_checks} checks` : undefined} />
+            <Stat label={`Uptime (${range})`} value={formatPercent(s?.uptime_percentage)} hint={s ? (s.covered_seconds ? `Down ${formatDuration(s.downtime_seconds)} of ${formatDuration(s.covered_seconds)} observed` : "No observed time") : undefined} />
             <Stat label="Average" value={formatMs(s?.avg_response_time_ms)} />
             <Stat label="P50" value={formatMs(s?.p50_response_time_ms)} />
             <Stat label="P95" value={formatMs(s?.p95_response_time_ms)} />

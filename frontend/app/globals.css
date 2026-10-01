@@ -17,6 +17,13 @@
   --warn: #8a5a00;
   --warn-bg: #fdf1d8;
   --chart: #1f5fbf;
+  --err-timeout: #2a78d6;
+  --err-dns_failure: #eb6834;
+  --err-connect_failure: #1baf7a;
+  --err-http_error: #eda100;
+  --err-assertion_failed: #e87ba4;
+  --err-slow_response: #008300;
+  --err-other: #8a96a3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,6 +44,13 @@
     --warn: #f0b95a;
     --warn-bg: #352a12;
     --chart: #6aa6ff;
+    --err-timeout: #3987e5;
+    --err-dns_failure: #d95926;
+    --err-connect_failure: #199e70;
+    --err-http_error: #c98500;
+    --err-assertion_failed: #d55181;
+    --err-slow_response: #008300;
+    --err-other: #6f7c89;
   }
 }
 

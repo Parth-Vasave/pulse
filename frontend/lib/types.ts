@@ -43,6 +43,8 @@ export interface Summary {
   total_checks: number;
   successful_checks: number;
   uptime_percentage: number | null;
+  downtime_seconds: number;
+  covered_seconds: number;
   avg_response_time_ms: number | null;
   p50_response_time_ms: number | null;
   p95_response_time_ms: number | null;
@@ -54,6 +56,7 @@ export interface SeriesPoint {
   checks: number;
   availability: number;
   error_rate: number;
+  errors: Record<string, number>;
   avg_response_time_ms: number | null;
   max_response_time_ms: number | null;
 }

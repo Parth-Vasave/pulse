@@ -45,14 +45,16 @@ Assertion types: `body_contains`, `body_not_contains`, `json_field` (`operator`:
 Stats example:
 ```json
 { "range": "24h",
-  "summary": { "total_checks": 125, "successful_checks": 100, "uptime_percentage": 80.0,
+  "summary": { "total_checks": 1440, "successful_checks": 1430, "uptime_percentage": 99.306,
+               "downtime_seconds": 600, "covered_seconds": 86400,
                "avg_response_time_ms": 50.5, "p50_response_time_ms": 50.5,
                "p95_response_time_ms": 95.1, "p99_response_time_ms": 99.0 },
-  "uptime": { "24h": 80.0, "7d": 91.2, "30d": null },
-  "series": [ { "timestamp": "…", "checks": 3, "availability": 66.67, "error_rate": 33.33,
+  "uptime": { "24h": 99.306, "7d": 99.9, "30d": null },
+  "series": [ { "timestamp": "…", "checks": 15, "availability": 93.33, "error_rate": 13.33,
+                "errors": { "timeout": 1, "http_error": 1 },
                 "avg_response_time_ms": 150.0, "max_response_time_ms": 200 } ] }
 ```
-`null` means *no data*, not 0%.
+Uptime and `availability` are **time-weighted** (see ARCHITECTURE.md); `error_rate` is the share of *checks* that failed, and `errors` counts failures by cause. `null` means *no data*, not 0%.
 
 ## Incidents and dashboard
 | | |

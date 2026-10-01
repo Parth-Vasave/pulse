@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatMs, formatPercent, timeAgo } from "@/lib/format";
+import { errorBreakdown, formatDuration, formatMs, formatPercent, timeAgo } from "@/lib/format";
 
 describe("format", () => {
   it("formats durations", () => {
@@ -22,5 +22,10 @@ describe("format", () => {
     expect(timeAgo("2026-01-01T11:59:30Z", now)).toBe("30s ago");
     expect(timeAgo("2026-01-01T10:00:00Z", now)).toBe("2h ago");
     expect(timeAgo(null, now)).toBe("Never");
+  });
+  it("splits error rate by cause and folds unknown causes into other", () => {
+    expect(errorBreakdown({ timeout: 1, http_error: 2, invalid_response: 1 }, 10)).toEqual({ timeout: 10, http_error: 20, other: 10 });
+    expect(errorBreakdown({}, 10)).toEqual({});
+    expect(errorBreakdown({ timeout: 1 }, 0)).toEqual({ timeout: 0 });
   });
 });

@@ -14,7 +14,7 @@ A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an AP
 - Error classification: timeout, DNS, connect, invalid response, unexpected status, HTTP error, assertion failed, slow, blocked target
 - Incident engine: pure state machine, DB-enforced deduplication, full timeline
 - Notifications with retry/backoff: email (SMTP), generic webhook, Discord
-- Dashboard (UP / DOWN / PAUSED with icons, heartbeat strips), monitor page (1 h/24 h/7 d/30 d charts: response time, availability, error rate; avg/P50/P95/P99; 24 h/7 d/30 d uptime), incidents page, settings
+- Dashboard (UP / DOWN / PAUSED with icons, heartbeat strips), monitor page (1 h/24 h/7 d/30 d charts: response time, time-weighted availability, errors by cause; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime), incidents page, settings
 - Public status page, API keys (hashed, shown once, revocable)
 - Security: Argon2, HttpOnly cookies, tenant isolation, **SSRF protection with DNS-rebinding defence**, rate limiting, security headers, request limits
 - Observability: structured JSON logs, Prometheus metrics, `/health`, `/ready`
@@ -98,8 +98,8 @@ make test            # backend + frontend unit/integration
 make e2e             # Playwright against the running stack
 make lint            # ruff, mypy, eslint, tsc
 ```
-- **Backend (162 tests):** unit (state machine, SSRF, assertions, retry, uptime), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
-- **Frontend (17 tests):** formatting, form parsing, status/heartbeat/banner/timeline/dialog components.
+- **Backend (175 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
+- **Frontend (18 tests):** formatting, form parsing, status/heartbeat/banner/timeline/dialog components.
 - **Browser E2E:** register → create monitor → fail demo API → incident → restore → resolved, driven through the UI.
 
 Backend tests need Postgres database `monitor_test` and Redis (`TEST_DATABASE_URL`, `REDIS_URL` override the defaults).

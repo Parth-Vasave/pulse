@@ -98,10 +98,29 @@ While DOWN, a failure resets the success streak (recovery must be *consecutive*)
 
 ## Metrics definitions
 
-- **Uptime %** = successful checks ÷ total checks × 100 in the window, rounded to 3 dp. **No checks → `null`** ("No data"), never 0 or 100. Paused periods produce no checks, so they are excluded, not counted as downtime. Uptime is *check-based*, not time-weighted: with uneven intervals it approximates availability.
-- **Latency** (avg, P50, P95, P99) uses `percentile_cont` (linear interpolation) over checks that received an HTTP response. Timeouts/DNS failures have no latency and show up in uptime/error rate. Failed-but-answered checks (a 500) are included, because slow errors matter.
-- **Series**: `date_bin` buckets (1 h → 1 min, 24 h → 15 min, 7 d → 1 h, 30 d → 6 h); availability and error rate are per-bucket check ratios.
-- **Public status**: `down` → outage; `up` but last response above the monitor's threshold → degraded; otherwise operational.
+**Uptime is time-weighted.** A check speaks for the monitor's state from its own timestamp until the next check, but **never longer than `CAP = 2 × interval`**. Beyond the cap the state is *unknown*: it is not counted as up or down. Coverage is clipped to the requested window, and the last check before the window still counts for the part of its coverage inside it.
+
+```
+uptime % = passing seconds / (passing seconds + failing seconds) × 100      (3 dp)
+```
+- **No covered time → `null`** ("No data"), never 0 or 100.
+- **Uneven or changing intervals don't distort it.** 23 hourly passes then 60 one-minute failures is 95.833% (23 h up of 24 h), where a count-based figure would say 27.7%.
+- **Paused periods and outages of this platform are excluded**, because no check covers them past the cap. A pause or a worker outage doesn't read as downtime.
+- Trade-off: a failure that is the last check before a pause speaks for up to `2 × interval` of downtime. Intervals of up to a few minutes make that negligible.
+- The summary also returns `downtime_seconds` and `covered_seconds` ("down 10 m of 24 h observed"), so the percentage is explainable.
+- All of it is one SQL scan (`LEAD()` window function) that computes every window (24 h / 7 d / 30 d) at once; see `repositories/stats.py`.
+
+**Series (charts).** `date_bin` buckets (1 h → 1 min, 24 h → 15 min, 7 d → 1 h, 30 d → 6 h). Each check's covered seconds are attributed to the bucket where its coverage *starts*, so buckets always sum to the headline totals (a segment crossing a boundary isn't split). Per bucket:
+- **availability** = passing seconds / covered seconds (falls back to the check ratio only when a bucket has zero covered seconds, e.g. a check at the very last instant);
+- **error rate** = failed checks / checks. This is an *event* rate, so it is deliberately not `100 − availability`;
+- **errors** = failed checks per cause (`timeout`, `dns_failure`, `connect_failure`, `http_error`, `assertion_failed`, `slow_response`, …). The UI stacks these so the bar height is the error rate and the colours say why.
+- Time is absolute (`timestamptz`, UTC bins), so DST changes and the database session time zone do not shift or duplicate buckets (tested across the 2026-03-08 US DST jump under `America/New_York`).
+
+**Latency** (avg, P50, P95, P99) uses `percentile_cont` (linear interpolation) over checks that received an HTTP response. Timeouts/DNS failures have no latency and appear in uptime and the error breakdown instead. Failed-but-answered checks (a 500) are included, because slow errors matter.
+
+**Public status**: `down` → outage; `up` but last response above the monitor's threshold → degraded; otherwise operational. Its 30-day figure is the same time-weighted uptime.
+
+**How it is tested** (`tests/integration/test_metrics.py`): pinned-`now` timelines with hand-computed answers (10 min down in 24 h = 99.306 %; uneven spacing; gap beyond the cap; paused period; carry-over from before the window; windows from one scan; cross-monitor weighting; per-bucket availability and error breakdown; DST and session time zone). The tests were mutation-checked: removing or inflating the cap makes them fail.
 
 ## Observability
 

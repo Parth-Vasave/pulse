@@ -37,10 +37,8 @@ def public_status(slug: str, db: Session = Depends(get_db)):
     monitors = db.scalars(
         select(Monitor).where(Monitor.user_id == user.id, Monitor.show_on_status_page.is_(True)).order_by(Monitor.name)
     ).all()
-    components = [
-        {"name": m.name, "status": _component_status(m), "uptime_30d": stats.uptime_windows(db, m.id)["30d"]}
-        for m in monitors
-    ]
+    uptime = stats.uptime_30d_by_monitor(db, list(monitors))
+    components = [{"name": m.name, "status": _component_status(m), "uptime_30d": uptime.get(m.id)} for m in monitors]
     since = datetime.now(UTC) - timedelta(days=14)
     incidents = (
         db.execute(

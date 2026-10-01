@@ -44,3 +44,26 @@ export const ERROR_LABELS: Record<string, string> = {
   slow_response: "Too slow",
   blocked_target: "Target blocked",
 };
+
+/** Fixed order and colour slot per cause; anything else folds into "other" so the palette never cycles. */
+export const ERROR_SERIES = [
+  { key: "timeout", label: "Timeouts" },
+  { key: "dns_failure", label: "DNS failures" },
+  { key: "connect_failure", label: "Connection failures" },
+  { key: "http_error", label: "HTTP errors" },
+  { key: "assertion_failed", label: "Failed checks on response" },
+  { key: "slow_response", label: "Too slow" },
+  { key: "other", label: "Other" },
+] as const;
+
+const NAMED = new Set<string>(ERROR_SERIES.map((s) => s.key));
+
+/** Per-bucket error rate (% of checks) split by cause, for stacking. */
+export function errorBreakdown(errors: Record<string, number>, checks: number): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [type, count] of Object.entries(errors)) {
+    const key = NAMED.has(type) ? type : "other";
+    out[key] = (out[key] ?? 0) + (checks ? (count / checks) * 100 : 0);
+  }
+  return out;
+}
