@@ -15,10 +15,10 @@ export default function EditMonitor() {
   if (loading && !data) return <Spinner />;
   if (error || !data) return <ErrorState message="This monitor could not be found." onRetry={reload} />;
   return (
-    <>
+    <div className="mx-auto max-w-3xl">
       <PageHeader title={`Edit ${data.name}`} />
       <MonitorForm initial={fromMonitor(data)} submitLabel="Save changes" onCancel={() => router.push(`/monitors/${id}`)}
         onSubmit={async (payload) => { await api(`/monitors/${id}`, { method: "PATCH", json: payload }); router.push(`/monitors/${id}`); }} />
-    </>
+    </div>
   );
 }

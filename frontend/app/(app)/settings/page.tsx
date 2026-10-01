@@ -176,9 +176,9 @@ function StatusPage() {
 
 export default function Settings() {
   return (
-    <>
+    <div className="mx-auto max-w-3xl">
       <PageHeader title="Settings" />
-      <div className="flex max-w-3xl flex-col gap-6"><Channels /><StatusPage /><ApiKeys /></div>
-    </>
+      <div className="flex flex-col gap-6"><Channels /><StatusPage /><ApiKeys /></div>
+    </div>
   );
 }

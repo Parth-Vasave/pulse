@@ -28,7 +28,7 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
   const setAssertion = (i: number, a: Assertion) => set("assertions", v.assertions.map((x, j) => (j === i ? a : x)));
 
   return (
-    <form onSubmit={submit} className="flex max-w-3xl flex-col gap-6">
+    <form onSubmit={submit} className="flex flex-col gap-6">
       <FormError message={error} />
       <Card className="flex flex-col gap-4 p-6">
         <h2 className="font-semibold">Request</h2>
