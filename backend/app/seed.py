@@ -29,7 +29,7 @@ MONITORS: list[tuple[str, str, int, dict[str, Any]]] = [
         {"assertions": [{"type": "json_field", "path": "status", "operator": "eq", "value": "healthy"}]},
     ),
     ("Authentication API", "/switch", 30, {"show_on_status_page": True}),
-    ("Slow Search API", "/slow", 60, {"response_time_threshold_ms": 2000, "timeout_seconds": 10}),
+    ("Slow Search API", "/slow", 60, {"response_time_threshold_ms": 5000, "timeout_seconds": 10}),
     ("Flaky Payments API", "/flaky", 30, {"failure_threshold": 3, "show_on_status_page": True}),
     ("Example failing API", "/error", 30, {"failure_threshold": 2}),
 ]

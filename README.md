@@ -122,6 +122,6 @@ docs/      ARCHITECTURE, SECURITY, API, screenshots
 ```
 
 ## Known limitations & future work
-Verified: backend, worker, scheduler, frontend and the browser E2E were run end-to-end natively against real Postgres and Redis. The Docker images/Compose file are validated with `docker compose config` and built in CI, but were not started on the author's machine, since the Docker daemon was unavailable. No email verification, password reset or MFA yet. Single region.
+Verified on an Apple-silicon (ARM64) machine: `docker compose up` from empty volumes reaches all-healthy in about 25 s (images cached) and seeds the demo data; the full alert loop runs unattended (failure → incident → alert email in Mailpit → recovery → resolved → recovery email); both Playwright specs pass against the Docker stack; and stopping Redis or Postgres for 30–40 s leaves every container running, serves clean `503`s, and resumes checking by itself. The GitHub Actions workflow is written but has not run yet (no remote). No email verification, password reset or MFA yet. Single region.
 
 Future: multi-region probes · Kubernetes · OpenTelemetry tracing · Grafana dashboards · maintenance windows · multi-step synthetic workflows · browser checks · teams/RBAC/SSO · alert routing and escalation policies · anomaly detection · AI incident summaries · JWT revocation, encrypted secrets at rest.

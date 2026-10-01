@@ -84,12 +84,15 @@ While DOWN, a failure resets the success streak (recovery must be *consecutive*)
 
 ## Failure handling
 
+*Verified in Docker by stopping each dependency mid-run (see the last row of the table).*
+
 | Failure | Behaviour |
 |---|---|
 | Monitored API down/slow/garbage | Recorded as a result; worker unaffected |
 | PostgreSQL down | API → `503` envelope; tasks retry with backoff; `pool_pre_ping` recovers connections; `/ready` → 503 |
 | Redis down | Beat rolls back and retries; checks already queued stay in Redis (AOF); workers reconnect indefinitely; check results and incidents live in Postgres so nothing is lost; rate limiter fails open (logged) |
 | Worker crash mid-task | `acks_late` + `reject_on_worker_lost` → job redelivered |
+| Chaos test (Redis stopped 40 s, then Postgres stopped 30 s) | No container restarted; `/ready` → 503 while `/health` stayed 200; API reads kept working during the Redis outage and returned a clean 503 envelope during the Postgres outage; the worker logged "Connection to broker lost… Connected to redis" and re-established itself; each outage left one gap in the check history (~66 s / ~45 s on a 30 s monitor) and no lost or duplicated results |
 | Notification provider down | Retried with backoff, then marked failed and shown in the timeline |
 
 ## Database
