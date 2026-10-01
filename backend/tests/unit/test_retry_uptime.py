@@ -25,8 +25,12 @@ def test_retry_succeeds_after_transient_failures():
 def test_retry_gives_up_after_max():
     sleeps = []
     with pytest.raises(ConnectionError):
-        retry_call(lambda: (_ for _ in ()).throw(ConnectionError()), max_retries=2,
-                   retry_on=(ConnectionError,), sleep=sleeps.append)
+        retry_call(
+            lambda: (_ for _ in ()).throw(ConnectionError()),
+            max_retries=2,
+            retry_on=(ConnectionError,),
+            sleep=sleeps.append,
+        )
     assert sleeps == [1, 2]
 
 

@@ -29,10 +29,12 @@ def _schema():
 @pytest.fixture(autouse=True)
 def _clean_db(_schema):
     with engine.begin() as conn:
-        conn.execute(text(
-            "TRUNCATE users, monitors, check_results, incidents, incident_events, "
-            "notification_channels, notifications, api_keys RESTART IDENTITY CASCADE"
-        ))
+        conn.execute(
+            text(
+                "TRUNCATE users, monitors, check_results, incidents, incident_events, "
+                "notification_channels, notifications, api_keys RESTART IDENTITY CASCADE"
+            )
+        )
     yield
 
 
@@ -69,14 +71,42 @@ def other_client():
         yield c
 
 
+DNS_OVERRIDES: dict[str, list[str] | str] = {}
+
+
 @pytest.fixture(autouse=True)
-def _public_dns(monkeypatch):
-    """Tests must not depend on real DNS: example hosts resolve to a public IP."""
+def fake_dns(monkeypatch):
+    """Tests never touch real DNS: every host resolves to a public IP unless overridden."""
+    import socket
+
     from app.services import ssrf
 
+    DNS_OVERRIDES.clear()
+
     def fake(host: str, port: int) -> list[str]:
-        return ["93.184.216.34"]
+        result = DNS_OVERRIDES.get(host, ["93.184.216.34"])
+        if result == "NXDOMAIN":
+            raise socket.gaierror("no such host")
+        return result  # type: ignore[return-value]
 
     monkeypatch.setattr(ssrf, "system_resolver", fake)
-    monkeypatch.setattr(ssrf.resolve_and_validate, "__defaults__", (fake,))
-    monkeypatch.setattr(ssrf.validate_url, "__defaults__", (fake,))
+    return DNS_OVERRIDES
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Each test starts with empty counters and a fresh async client (TestClient loops are per-test)."""
+    import redis
+
+    from app.core import ratelimit
+    from app.core.config import get_settings
+
+    ratelimit._client = None
+    r = redis.Redis.from_url(get_settings().redis_url)
+    for key in r.scan_iter("rl:*"):
+        r.delete(key)
+    yield
+    ratelimit._client = None
+
+
+from tests.worker.conftest import target  # noqa: E402,F401  (shared fixture)

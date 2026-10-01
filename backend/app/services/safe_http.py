@@ -8,11 +8,11 @@ TLS SNI / certificate verification still use the original hostname.
 import httpcore
 import httpx
 
-from app.services.ssrf import Resolver, resolve_and_validate, system_resolver
+from app.services.ssrf import Resolver, resolve_and_validate
 
 
 class GuardedBackend(httpcore.SyncBackend):
-    def __init__(self, resolver: Resolver = system_resolver) -> None:
+    def __init__(self, resolver: Resolver | None = None) -> None:
         super().__init__()
         self._resolver = resolver
 
@@ -28,7 +28,7 @@ class GuardedBackend(httpcore.SyncBackend):
         raise last_exc
 
 
-def build_guarded_client(timeout_seconds: float, resolver: Resolver = system_resolver) -> httpx.Client:
+def build_guarded_client(timeout_seconds: float, resolver: Resolver | None = None) -> httpx.Client:
     transport = httpx.HTTPTransport(retries=0)
     transport._pool._network_backend = GuardedBackend(resolver)  # type: ignore[attr-defined]
     return httpx.Client(

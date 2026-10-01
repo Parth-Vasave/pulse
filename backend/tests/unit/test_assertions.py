@@ -6,8 +6,9 @@ def resp(body, status=200):
 
 
 def test_body_contains():
-    assert evaluate_all([{"type": "body_contains", "value": '"database": "connected"'}],
-                        resp('{"database": "connected"}')).passed
+    assert evaluate_all(
+        [{"type": "body_contains", "value": '"database": "connected"'}], resp('{"database": "connected"}')
+    ).passed
     assert not evaluate_all([{"type": "body_contains", "value": "x"}], resp("abc")).passed
 
 

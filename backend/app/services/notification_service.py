@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -33,7 +34,10 @@ def deliver(db: Session, notification_id: int) -> NotificationError | None:
     Returns None when finished (sent, failed permanently, or nothing to do). Returns the
     error when the caller should schedule a retry. Row state is updated here.
     """
-    n = db.get(Notification, notification_id)
+    # SKIP LOCKED: if another worker is already delivering this row, do nothing (no duplicate sends).
+    n = db.scalars(
+        select(Notification).where(Notification.id == notification_id).with_for_update(skip_locked=True)
+    ).first()
     if n is None or n.status in ("sent", "failed"):
         return None
     channel = db.get(NotificationChannel, n.channel_id) if n.channel_id else None

@@ -68,8 +68,9 @@ def check_hostname(host: str) -> None:
         raise SSRFError(f"Host '{host}' is not allowed")
 
 
-def resolve_and_validate(host: str, port: int, resolver: Resolver = system_resolver) -> list[str]:
+def resolve_and_validate(host: str, port: int, resolver: Resolver | None = None) -> list[str]:
     """Resolve `host` and return its addresses, raising if ANY is disallowed."""
+    resolver = resolver or system_resolver
     if _is_allowlisted(host):
         return resolver(host, port)
     try:
@@ -90,7 +91,7 @@ def resolve_and_validate(host: str, port: int, resolver: Resolver = system_resol
     return addresses
 
 
-def validate_url(url: str, resolver: Resolver = system_resolver) -> str:
+def validate_url(url: str, resolver: Resolver | None = None) -> str:
     """Validate a monitor URL. Unresolvable hosts pass (DNS may be fixed later); the
     connect-time guard still protects the actual request."""
     parts = urlsplit(url)
