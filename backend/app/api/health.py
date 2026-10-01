@@ -3,6 +3,7 @@ from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
+from app.core import metrics as _metrics  # noqa: F401  (registers metric families)
 from app.core.config import get_settings
 from app.core.database import engine
 from app.core.errors import error_response

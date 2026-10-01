@@ -1,0 +1,101 @@
+name: api-monitor
+
+x-backend: &backend
+  build: { context: ., dockerfile: infrastructure/docker/backend.Dockerfile }
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      POSTGRES_DB: ${POSTGRES_DB:-monitor}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # AOF so queued jobs survive a Redis restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["sh", "-c", "alembic upgrade head && if [ \"$${SEED_DEMO_DATA}\" = true ]; then DEMO_TARGET_URL=http://demo-service:9000 python -m app.seed; fi"]
+
+  backend:
+    <<: *backend
+    environment:
+      TRUST_PROXY_HEADERS: "true"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *backend
+    working_dir: /app
+    # Threads pool: checks are I/O bound, and one process keeps Prometheus counters accurate.
+    command: ["celery", "-A", "worker.celery_app", "worker", "-P", "threads", "-c", "20", "-Q", "checks,notifications", "-l", "INFO"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  scheduler:
+    <<: *backend
+    working_dir: /app
+    command: ["celery", "-A", "worker.celery_app", "beat", "-l", "INFO", "-s", "/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+      args:
+        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
+    environment:
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
+    ports: ["3000:3000"]
+    depends_on: [backend]
+    restart: unless-stopped
+
+  demo-service:
+    build: { context: ., dockerfile: infrastructure/docker/demo.Dockerfile }
+    ports: ["9000:9000"]
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025"]
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["monitoring"]
+    volumes: ["./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+
+volumes:
+  pgdata:
+  redisdata:

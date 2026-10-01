@@ -133,3 +133,22 @@ def display_status(monitor: Monitor) -> str:
     if not monitor.enabled:
         return "paused"
     return monitor.status if monitor.status in ("up", "down") else "unknown"
+
+
+def recent_outcomes(db: Session, monitor_ids: list[int], limit: int = 60) -> dict[int, list[bool]]:
+    """Last `limit` check outcomes per monitor, oldest first (for heartbeat strips)."""
+    if not monitor_ids:
+        return {}
+    rn = func.row_number().over(partition_by=CheckResult.monitor_id, order_by=CheckResult.checked_at.desc())
+    ranked = (
+        select(CheckResult.monitor_id, CheckResult.success, CheckResult.checked_at, rn.label("rn"))
+        .where(CheckResult.monitor_id.in_(monitor_ids))
+        .subquery()
+    )
+    rows = db.execute(
+        select(ranked.c.monitor_id, ranked.c.success).where(ranked.c.rn <= limit).order_by(ranked.c.checked_at)
+    ).all()
+    out: dict[int, list[bool]] = {mid: [] for mid in monitor_ids}
+    for monitor_id, success in rows:
+        out[monitor_id].append(success)
+    return out

@@ -246,3 +246,11 @@ def test_unhandled_errors_use_envelope_and_hide_details():
     r = TestClient(mini, raise_server_exceptions=False).get("/boom")
     assert r.status_code == 500 and r.json()["error"]["code"] == "internal_error"
     assert "secret" not in r.text
+
+
+def test_heartbeats_scoped_and_ordered(auth_client, other_client, db):
+    m = auth_client.post("/api/monitors", json=VALID).json()
+    add_checks(db, m["id"], [10, 10], success=True, age=timedelta(minutes=10))
+    add_checks(db, m["id"], [None], success=False, age=timedelta(minutes=1))
+    assert auth_client.get("/api/monitors/heartbeats").json() == {str(m["id"]): [True, True, False]}
+    assert other_client.get("/api/monitors/heartbeats").json() == {}

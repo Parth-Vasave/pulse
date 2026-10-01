@@ -25,6 +25,12 @@ def list_monitors(user: User = Depends(get_current_user), db: Session = Depends(
     return [_out(m, uptime.get(m.id)) for m in monitors]
 
 
+@router.get("/heartbeats")
+def heartbeats(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict[int, list[bool]]:
+    ids = list(db.scalars(select(Monitor.id).where(Monitor.user_id == user.id)))
+    return stats.recent_outcomes(db, ids)
+
+
 @router.get("/{monitor_id}", response_model=MonitorOut)
 def get_monitor(monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
     return _out(monitor, stats.uptime_windows(db, monitor.id)["24h"])
