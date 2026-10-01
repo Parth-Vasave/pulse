@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #f2f5f8;
+  --surface: #ffffff;
+  --ink: #14212e;
+  --muted: #566677;
+  --line: #dce3ea;
+  --accent: #1f5fbf;
+  --accent-ink: #ffffff;
+  --up: #0b7656;
+  --up-bg: #e1f3ea;
+  --down: #c42b2b;
+  --down-bg: #fbe8e8;
+  --paused: #5f6b78;
+  --paused-bg: #e8ecf0;
+  --warn: #8a5a00;
+  --warn-bg: #fdf1d8;
+  --chart: #1f5fbf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0d141b;
+    --surface: #141d26;
+    --ink: #e6edf3;
+    --muted: #94a5b5;
+    --line: #25333f;
+    --accent: #6aa6ff;
+    --accent-ink: #0d141b;
+    --up: #3fcb9a;
+    --up-bg: #12302a;
+    --down: #ff7b72;
+    --down-bg: #3a1c1f;
+    --paused: #9aa7b4;
+    --paused-bg: #212c37;
+    --warn: #f0b95a;
+    --warn-bg: #352a12;
+    --chart: #6aa6ff;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-up: var(--up);
+  --color-up-bg: var(--up-bg);
+  --color-down: var(--down);
+  --color-down-bg: var(--down-bg);
+  --color-paused: var(--paused);
+  --color-paused-bg: var(--paused-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+}
+
+html { color-scheme: light dark; }
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+dialog::backdrop { background: rgb(8 14 20 / 0.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--down) 45%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.pulse-down { animation: pulse-ring 1.8s ease-out infinite; }
