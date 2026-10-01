@@ -7,6 +7,7 @@ charts are populated immediately, one resolved incident and one open incident.
 import os
 import random
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 
@@ -20,7 +21,7 @@ DEMO_EMAIL = "demo@example.com"
 DEMO_PASSWORD = "demo-password-123"  # noqa: S105  (development only; printed on seed)
 
 # (name, path, interval, extra) - the last two intentionally misbehave
-MONITORS = [
+MONITORS: list[tuple[str, str, int, dict[str, Any]]] = [
     (
         "Demo API",
         "/healthy",
