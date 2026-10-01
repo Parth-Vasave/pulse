@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, health, incidents, monitors, public, settings
+from app.api import account, auth, health, incidents, monitors, public, settings
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
@@ -37,7 +37,7 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SecurityHeadersMiddleware)
     register_error_handlers(app)
-    for module in (health, auth, monitors, incidents, settings, public):
+    for module in (health, auth, account, monitors, incidents, settings, public):
         app.include_router(module.router)
     return app
 

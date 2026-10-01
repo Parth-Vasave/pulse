@@ -25,7 +25,12 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int) -> str:
+def credential_version(password_changed_at: datetime | None) -> int:
+    """Changes whenever the password changes (0 until it ever has). Embedded in every session token."""
+    return int(password_changed_at.timestamp() * 1000) if password_changed_at else 0
+
+
+def create_access_token(user_id: int, version: int = 0) -> str:
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
@@ -33,18 +38,19 @@ def create_access_token(user_id: int) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_minutes),
         "jti": uuid.uuid4().hex,
+        "pwv": version,
     }
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 
-def decode_access_token(token: str) -> int | None:
-    """Return the user id, or None if the token is invalid/expired."""
+def decode_access_token(token: str) -> tuple[int, int] | None:
+    """Return (user_id, credential_version), or None if the token is invalid/expired."""
     try:
         payload = jwt.decode(
             token, get_settings().secret_key, algorithms=[_ALGORITHM], options={"require": ["exp", "sub"]}
         )
-        return int(payload["sub"])
-    except (jwt.PyJWTError, ValueError):
+        return int(payload["sub"]), int(payload.get("pwv", 0))
+    except (jwt.PyJWTError, ValueError, TypeError):
         return None
 
 

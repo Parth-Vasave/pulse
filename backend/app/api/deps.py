@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import AppError
-from app.core.security import API_KEY_PREFIX, decode_access_token, hash_api_key
+from app.core.security import API_KEY_PREFIX, credential_version, decode_access_token, hash_api_key
 from app.models import ApiKey, Monitor, User
 
 
@@ -33,9 +33,10 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             return user
     else:
         token = request.cookies.get(get_settings().cookie_name)
-    user_id = decode_access_token(token) if token else None
-    user = db.get(User, user_id) if user_id else None
-    if user is None:
+    claims = decode_access_token(token) if token else None
+    user = db.get(User, claims[0]) if claims else None
+    # A token minted before the last password change carries an old credential version: reject it.
+    if user is None or claims is None or claims[1] != credential_version(user.password_changed_at):
         raise _unauthorized()
     return user
 

@@ -13,7 +13,14 @@ from app.core.logging import get_logger
 log = get_logger("app.ratelimit")
 WINDOW_SECONDS = 60
 _EXEMPT = ("/health", "/ready", "/metrics")
-_AUTH_PATHS = ("/api/auth/login", "/api/auth/register")
+# Endpoints that verify a password get the strict bucket (brute-force protection, also for stolen sessions).
+_AUTH_PATHS = (
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/account/email",
+    "/api/account/password",
+    "/api/account/delete",
+)
 
 _client: aioredis.Redis | None = None
 

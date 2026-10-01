@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,5 +15,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     status_page_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status_page_slug: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    # Set when the password changes; tokens carry a version derived from it, so a change signs out other sessions.
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = updated_col()
