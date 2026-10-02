@@ -1,3 +1,4 @@
+import random
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, or_, select
@@ -12,16 +13,27 @@ from worker.tasks.check import run_monitor_check
 
 log = get_logger("worker.scheduler")
 BATCH = 500
+MAX_BATCHES_PER_TICK = 20  # bounds one tick at 10k monitors; the rest is picked up by the next tick
 
 
-def schedule_due(now: datetime | None = None) -> int:
-    """Enqueue a check for every enabled monitor whose next_check_at has passed.
+def _jitter(interval_seconds: int) -> timedelta:
+    """Up to 10% of the interval (max 10 s) so monitors that start together don't stay in lockstep."""
+    return timedelta(seconds=random.uniform(0, min(interval_seconds * 0.1, 10)))  # noqa: S311 - not security-sensitive
 
-    The DB is the schedule: `FOR UPDATE SKIP LOCKED` makes overlapping ticks safe, and we enqueue
-    BEFORE committing the new next_check_at. If Redis is down the transaction rolls back and the
-    monitor is simply picked up again on the next tick (at-least-once, never silently skipped).
+
+def _next_slot(previous: datetime | None, interval_seconds: int, now: datetime) -> datetime:
+    """Anchor to the previous slot so a late tick doesn't push the cadence back (no drift).
+
+    If we fell a whole interval or more behind (outage, backlog) or the monitor has no schedule yet,
+    re-anchor on `now` with jitter instead of firing the missed checks in a burst.
     """
-    now = now or datetime.now(UTC)
+    interval = timedelta(seconds=interval_seconds)
+    if previous is not None and previous + interval > now:
+        return previous + interval
+    return now + interval + _jitter(interval_seconds)
+
+
+def _schedule_batch(now: datetime) -> int:
     with session_scope() as db:
         due = db.scalars(
             select(Monitor)
@@ -34,8 +46,26 @@ def schedule_due(now: datetime | None = None) -> int:
             # `expires`: a check that sat in the queue longer than one interval is stale; drop it
             # rather than let a backlog turn into a burst of requests against the target.
             run_monitor_check.apply_async(args=[monitor.id], expires=max(monitor.interval_seconds, 30))
-            monitor.next_check_at = now + timedelta(seconds=monitor.interval_seconds)
+            monitor.next_check_at = _next_slot(monitor.next_check_at, monitor.interval_seconds, now)
     return len(due)
+
+
+def schedule_due(now: datetime | None = None) -> int:
+    """Enqueue a check for every enabled monitor whose next_check_at has passed.
+
+    The DB is the schedule: `FOR UPDATE SKIP LOCKED` makes overlapping ticks safe, and we enqueue
+    BEFORE committing the new next_check_at. If Redis is down the transaction rolls back and the
+    monitor is simply picked up again on the next tick (at-least-once, never silently skipped).
+    Due monitors are drained in batches (one transaction each) so more than BATCH monitors don't lag.
+    """
+    now = now or datetime.now(UTC)
+    total = 0
+    for _ in range(MAX_BATCHES_PER_TICK):
+        n = _schedule_batch(now)
+        total += n
+        if n < BATCH:
+            break
+    return total
 
 
 @celery_app.task(name="worker.scheduler.tasks.enqueue_due_checks")

@@ -25,8 +25,9 @@ def test_due_monitors_are_enqueued_and_rescheduled(db, enqueued):
     assert sched.schedule_due(now) == 2
     assert sorted(c["args"][0] for c in enqueued) == sorted([due.id, never.id])
     db.expire_all()
-    assert db.get(Monitor, due.id).next_check_at == now + timedelta(seconds=30)
-    assert db.get(Monitor, never.id).next_check_at == now + timedelta(seconds=300)
+    assert db.get(Monitor, due.id).next_check_at == now + timedelta(seconds=29)  # anchored to its slot, no drift
+    never_at = db.get(Monitor, never.id).next_check_at
+    assert now + timedelta(seconds=300) <= never_at <= now + timedelta(seconds=310)  # re-anchored with jitter
     assert db.get(Monitor, fresh.id).next_check_at == now + timedelta(minutes=5)
     assert db.get(Monitor, paused.id).next_check_at < now
     assert all(c["expires"] >= 30 for c in enqueued)
@@ -42,6 +43,29 @@ def test_different_intervals_are_respected(db, enqueued):
     assert sched.schedule_due(t0 + timedelta(seconds=31)) == 1
     assert enqueued[0]["args"] == [a.id]
     _ = b
+
+
+def test_late_tick_does_not_drift_and_long_outage_does_not_burst(db, enqueued):
+    u = make_user(db)
+    now = datetime.now(UTC)
+    late = make_monitor(db, u, name="late", interval_seconds=60, next_check_at=now - timedelta(seconds=20))
+    lost = make_monitor(db, u, name="lost", interval_seconds=60, next_check_at=now - timedelta(hours=3))
+    sched.schedule_due(now)
+    db.expire_all()
+    assert db.get(Monitor, late.id).next_check_at == now + timedelta(seconds=40)  # still on the original grid
+    lost_at = db.get(Monitor, lost.id).next_check_at
+    assert now + timedelta(seconds=60) <= lost_at <= now + timedelta(seconds=66)  # one check, not 180 catch-ups
+    assert len(enqueued) == 2
+
+
+def test_backlog_larger_than_one_batch_is_drained_in_one_tick(db, enqueued, monkeypatch):
+    monkeypatch.setattr(sched, "BATCH", 2)
+    u = make_user(db)
+    now = datetime.now(UTC)
+    for i in range(5):
+        make_monitor(db, u, name=f"m{i}", interval_seconds=60, next_check_at=now - timedelta(seconds=1))
+    assert sched.schedule_due(now) == 5
+    assert len({c["args"][0] for c in enqueued}) == 5
 
 
 def test_broker_outage_does_not_lose_the_schedule(db, monkeypatch):
