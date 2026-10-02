@@ -223,13 +223,63 @@ def test_rate_limit_returns_429_with_retry_after(client, monkeypatch):
     ratelimit._client = None
 
 
-def test_rate_limiter_fails_open_when_redis_down(monkeypatch):
+def test_rate_limiter_falls_back_to_local_limit_when_redis_down(monkeypatch):
     from app.core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "redis_url", "redis://127.0.0.1:1/0")
     ratelimit._client = None
-    assert asyncio.run(ratelimit.check_limit("k", 1)) == (True, 0)
+    ratelimit._local.clear()
+    results = [asyncio.run(ratelimit.check_limit("k", 2))[0] for _ in range(3)]
+    assert results == [True, True, False]  # still throttles, never takes the API down
     ratelimit._client = None
+    ratelimit._local.clear()
+
+
+def test_rate_limit_key_always_has_ttl():
+    import redis
+
+    from app.core.config import get_settings
+
+    ratelimit._client = None
+    asyncio.run(ratelimit.check_limit("rl:ttl:test", 5))
+    r = redis.Redis.from_url(get_settings().redis_url)
+    keys = list(r.scan_iter("rl:ttl:test:*"))
+    assert keys and all(r.ttl(k) > 0 for k in keys)
+    ratelimit._client = None
+
+
+def test_sliding_window_counts_previous_window(monkeypatch):
+    t = [1_000_000 * 60 + 59.0]  # last second of a window
+    monkeypatch.setattr(ratelimit.time, "time", lambda: t[0])
+
+    def hit() -> bool:
+        ratelimit._client = None  # each asyncio.run gets a new loop, so the cached client can't be reused
+        return asyncio.run(ratelimit.check_limit("rl:sw", 4))[0]
+
+    assert all(hit() for _ in range(4))
+    assert hit() is False
+    t[0] += 2  # just into the next window: a fixed window would reset to zero
+    assert hit() is False
+    t[0] += 58  # the previous window has aged out
+    assert hit() is True
+    ratelimit._client = None
+
+
+def test_client_ip_uses_nth_entry_from_the_right(monkeypatch):
+    from starlette.requests import Request
+
+    from app.core.config import get_settings
+
+    def req(xff):
+        return Request({"type": "http", "headers": [(b"x-forwarded-for", xff.encode())], "client": ("10.0.0.9", 1)})
+
+    s = get_settings()
+    assert ratelimit.client_ip(req("6.6.6.6, 1.2.3.4")) == "10.0.0.9"  # untrusted: header ignored
+    monkeypatch.setattr(s, "trust_proxy_headers", True)
+    assert ratelimit.client_ip(req("6.6.6.6, 1.2.3.4")) == "1.2.3.4"  # spoofed left entry ignored
+    monkeypatch.setattr(s, "trusted_proxy_count", 2)
+    assert ratelimit.client_ip(req("6.6.6.6, 1.2.3.4")) == "6.6.6.6"
+    assert ratelimit.client_ip(req("1.2.3.4")) == "10.0.0.9"  # fewer hops than trusted proxies: fall back to peer
 
 
 def test_unhandled_errors_use_envelope_and_hide_details():

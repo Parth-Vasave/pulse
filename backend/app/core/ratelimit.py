@@ -1,5 +1,13 @@
-"""Redis fixed-window rate limiter. Fails open: an outage of the limiter must not
-take the API down (the failure is logged)."""
+"""Redis sliding-window-counter rate limiter.
+
+The count is atomic (one Lua script, so a crash can't leave a key without a TTL) and weights the
+previous window by how much of it still overlaps the last 60 s, which removes the 2x burst a plain
+fixed window allows at a boundary. If Redis is unavailable we fall back to a per-process limiter
+instead of failing open, so brute-force protection on login survives a Redis outage.
+"""
+
+import math
+import time
 
 import redis.asyncio as aioredis
 from starlette.requests import Request
@@ -22,7 +30,17 @@ _AUTH_PATHS = (
     "/api/account/delete",
 )
 
+# KEYS: current window counter, previous window counter. ARGV: window seconds, elapsed fraction of the window.
+# INCR and EXPIRE run atomically; returns the weighted estimate of requests in the trailing window.
+_SCRIPT = """
+local cur = redis.call('INCR', KEYS[1])
+if cur == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]) * 2) end
+local prev = tonumber(redis.call('GET', KEYS[2]) or '0')
+return math.floor(prev * (1 - tonumber(ARGV[2])) + cur)
+"""
+
 _client: aioredis.Redis | None = None
+_local: dict[str, tuple[int, int]] = {}  # fallback: key -> (window index, count)
 
 
 def _redis() -> aioredis.Redis:
@@ -33,26 +51,50 @@ def _redis() -> aioredis.Redis:
 
 
 def client_ip(request: Request) -> str:
-    if get_settings().trust_proxy_headers:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+    """Peer address, or with TRUST_PROXY_HEADERS the address our own proxy saw.
+
+    Each trusted proxy appends the address it received the request from, so the client is the Nth entry
+    from the RIGHT (N = TRUSTED_PROXY_COUNT). Entries further left are client-supplied and spoofable.
+    """
+    s = get_settings()
+    if s.trust_proxy_headers:
+        hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+        if len(hops) >= s.trusted_proxy_count:
+            return hops[-s.trusted_proxy_count]
     return request.client.host if request.client else "unknown"
+
+
+def _check_local(key: str, limit: int, now: float) -> tuple[bool, int]:
+    window = int(now // WINDOW_SECONDS)
+    if len(_local) > 10_000:
+        for k in [k for k, (w, _) in _local.items() if w != window]:
+            del _local[k]
+    w, count = _local.get(key, (window, 0))
+    count = count + 1 if w == window else 1
+    _local[key] = (window, count)
+    if count > limit:
+        return False, max(math.ceil((window + 1) * WINDOW_SECONDS - now), 1)
+    return True, 0
 
 
 async def check_limit(key: str, limit: int) -> tuple[bool, int]:
     """Return (allowed, retry_after_seconds)."""
+    now = time.time()
+    window, elapsed = divmod(now, WINDOW_SECONDS)
+    retry_after = max(math.ceil(WINDOW_SECONDS - elapsed), 1)
     try:
-        r = _redis()
-        count = await r.incr(key)
-        if count == 1:
-            await r.expire(key, WINDOW_SECONDS)
-        if count > limit:
-            ttl = await r.ttl(key)
-            return False, max(ttl, 1)
+        estimate = await _redis().eval(  # type: ignore[misc]
+            _SCRIPT,
+            2,
+            f"{key}:{int(window)}",
+            f"{key}:{int(window) - 1}",
+            str(WINDOW_SECONDS),
+            str(elapsed / WINDOW_SECONDS),
+        )
+        return (False, retry_after) if int(estimate) > limit else (True, 0)
     except Exception as exc:  # noqa: BLE001 - limiter must never break requests
         log.warning("rate_limiter_unavailable", extra={"error": type(exc).__name__})
-    return True, 0
+        return _check_local(key, limit, now)
 
 
 class RateLimitMiddleware:

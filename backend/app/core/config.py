@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     # Only enable behind a trusted reverse proxy that sets X-Forwarded-For.
     trust_proxy_headers: bool = False
+    # Number of trusted proxies in front of the API; the client IP is that many entries from the right of X-Forwarded-For.
+    trusted_proxy_count: int = 1
     rate_limit_per_minute: int = 120
     auth_rate_limit_per_minute: int = 10
 
