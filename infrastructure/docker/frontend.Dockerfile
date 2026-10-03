@@ -18,7 +18,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-RUN addgroup -S app && adduser -S app -G app && chown -R app /app
+# The runtime only needs `node`; drop npm/yarn (and their bundled, scanner-flagged dependencies) from the final image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /opt/yarn* /usr/local/bin/yarn* \
+ && addgroup -S app && adduser -S app -G app && chown -R app /app
 USER app
 EXPOSE 3000
 CMD ["node", "server.js"]
