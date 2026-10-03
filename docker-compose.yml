@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     # AOF so queued jobs survive a Redis restart.
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redisdata:/data]
