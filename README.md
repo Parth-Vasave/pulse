@@ -118,11 +118,14 @@ worker/    Celery app, check/notify tasks, HTTP checker, scheduler tasks
 frontend/  Next.js app, components, hooks, unit + e2e tests
 demo-service/  target API with a fail switch
 infrastructure/  Dockerfiles, Prometheus config
-docs/      ARCHITECTURE, SECURITY, API, screenshots
+docs/      ARCHITECTURE, SECURITY, API, DEPLOYMENT, screenshots
 ```
 
+## Deployment
+Tagging `vX.Y.Z` publishes images to GHCR and a GitHub release; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and `docker-compose.prod.yml`.
+
 ## Dependency pinning
-Python dependencies are **pinned with hashes**: edit `backend/requirements.in` (and `requirements-dev.in`), run `make lock`, and commit the generated `requirements.txt` / `requirements-dev.txt`. Docker and CI install only those exact, hash-verified versions, so a build next month is the same build as today. Node dependencies are pinned by `frontend/package-lock.json` (`npm ci`). Infrastructure images use fixed tags (`postgres:16`, `redis:7`, `mailpit:v1.31.3`, `prometheus:v3.15.0`).
+Python dependencies are **pinned with hashes**: edit `backend/requirements.in` (and `requirements-dev.in`), run `make lock`, and commit the generated `requirements.txt` / `requirements-dev.txt`. Docker and CI install only those exact, hash-verified versions, so a build next month is the same build as today. Node dependencies are pinned by `frontend/package-lock.json` (`npm ci`). Dependabot opens weekly update PRs, and CI runs `pip-audit`, `npm audit` and a Trivy image scan (HIGH/CRITICAL) and enforces a backend coverage floor of 88%. Infrastructure images use fixed tags (`postgres:16`, `redis:7`, `mailpit:v1.31.3`, `prometheus:v3.15.0`).
 
 ## License
 [MIT](LICENSE) (c) 2026 Parth Vasave

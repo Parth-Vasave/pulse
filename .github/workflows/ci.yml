@@ -18,6 +18,20 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Python dependencies (pip-audit)
+        run: pip install pip-audit && pip-audit --require-hashes -r backend/requirements.txt
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Node dependencies (npm audit)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
   backend:
     runs-on: ubuntu-latest
     services:
@@ -53,7 +67,7 @@ jobs:
         run: alembic upgrade head && alembic downgrade base && alembic upgrade head
       - name: Tests
         working-directory: backend
-        run: pytest --cov=app --cov=../worker --cov-report=term-missing:skip-covered -p no:warnings
+        run: pytest --cov=app --cov=../worker --cov-report=term-missing:skip-covered --cov-fail-under=88 -p no:warnings
 
   frontend:
     runs-on: ubuntu-latest
@@ -71,18 +85,31 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    strategy:
+      matrix:
+        include:
+          - { name: backend, file: infrastructure/docker/backend.Dockerfile }
+          - { name: frontend, file: infrastructure/docker/frontend.Dockerfile }
+          - { name: demo, file: infrastructure/docker/demo.Dockerfile }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Build backend image
+      - name: Build ${{ matrix.name }} image
         uses: docker/build-push-action@v6
-        with: { context: ., file: infrastructure/docker/backend.Dockerfile, push: false, cache-from: type=gha, cache-to: "type=gha,mode=max" }
-      - name: Build frontend image
-        uses: docker/build-push-action@v6
-        with: { context: ., file: infrastructure/docker/frontend.Dockerfile, push: false, cache-from: type=gha, cache-to: "type=gha,mode=max" }
-      - name: Build demo image
-        uses: docker/build-push-action@v6
-        with: { context: ., file: infrastructure/docker/demo.Dockerfile, push: false }
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          load: true
+          tags: pulse-${{ matrix.name }}:ci
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Scan image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: pulse-${{ matrix.name }}:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
 
   e2e:
     runs-on: ubuntu-latest

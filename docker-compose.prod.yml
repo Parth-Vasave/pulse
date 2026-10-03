@@ -1,0 +1,81 @@
+# Production-style stack that runs the published images (see docs/DEPLOYMENT.md).
+#   PULSE_VERSION=1.0.0 PULSE_REGISTRY=ghcr.io/parth-vasave docker compose -f docker-compose.prod.yml up -d
+name: pulse
+
+x-backend: &backend
+  image: ${PULSE_REGISTRY:-ghcr.io/parth-vasave}/pulse-backend:${PULSE_VERSION:-latest}
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-monitor}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+
+  backend:
+    <<: *backend
+    environment:
+      TRUST_PROXY_HEADERS: "true"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *backend
+    working_dir: /app
+    command: ["celery", "-A", "worker.celery_app", "worker", "-P", "threads", "-c", "20", "-Q", "checks,notifications", "-l", "INFO"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  scheduler:
+    <<: *backend
+    working_dir: /app
+    command: ["celery", "-A", "worker.celery_app", "beat", "-l", "INFO", "-s", "/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    image: ${PULSE_REGISTRY:-ghcr.io/parth-vasave}/pulse-frontend:${PULSE_VERSION:-latest}
+    environment:
+      INTERNAL_API_URL: http://backend:8000
+    ports: ["3000:3000"]
+    depends_on: [backend]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
