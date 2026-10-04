@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Result retention
     check_retention_days: int = 35
 
+    # Dead-man's switch: if set, the scheduler GETs this URL about once per interval, but only after a tick that
+    # succeeded. An external service (Healthchecks.io, Cronitor, ...) alerts when the pings stop.
+    heartbeat_url: str = ""
+    heartbeat_interval_seconds: int = Field(default=60, ge=10)
+
     @model_validator(mode="after")
     def _refuse_insecure_secret_outside_dev(self) -> "Settings":
         """Fail fast: with a publicly known SECRET_KEY anyone could forge login tokens."""
@@ -56,6 +61,12 @@ class Settings(BaseSettings):
                 "SECRET_KEY is a placeholder. Set a strong random value, e.g. "
                 "python -c 'import secrets; print(secrets.token_urlsafe(48))'"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _require_http_heartbeat_url(self) -> "Settings":
+        if self.heartbeat_url and not self.heartbeat_url.lower().startswith(("http://", "https://")):
+            raise ValueError("HEARTBEAT_URL must be an http(s) URL")
         return self
 
     @property

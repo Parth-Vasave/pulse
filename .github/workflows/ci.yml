@@ -32,6 +32,16 @@ jobs:
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
 
+  monitoring-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Prometheus config and alert rules (promtool)
+        run: >-
+          docker run --rm --entrypoint promtool
+          -v "$PWD/infrastructure/monitoring:/etc/prometheus:ro"
+          prom/prometheus:v3.15.0 check config /etc/prometheus/prometheus.yml
+
   backend:
     runs-on: ubuntu-latest
     services:

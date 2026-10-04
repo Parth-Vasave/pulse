@@ -33,7 +33,7 @@ class Target:
                     self.send_header("Location", "http://127.0.0.1:1/internal")
                     self.end_headers()
                     return
-                if self.path == "/hook":
+                if self.path.split("?")[0] == "/hook":
                     self.send_response(target.webhook_status)
                     self.end_headers()
                     return

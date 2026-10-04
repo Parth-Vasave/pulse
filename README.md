@@ -18,7 +18,7 @@ A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an AP
 - Account settings: change email/password (re-authenticated; a password change signs out other sessions) and delete account; settings organised into Account / Notifications / Status page / API keys
 - Public status page, API keys (hashed, shown once, revocable)
 - Security: Argon2, HttpOnly cookies, tenant isolation, **SSRF protection with DNS-rebinding defence**, rate limiting, security headers, request limits
-- Observability: structured JSON logs, Prometheus metrics, `/health`, `/ready`
+- Observability: structured JSON logs, Prometheus metrics, `/health`, `/ready`; **Pulse monitors itself**: scheduler-tick and queue-depth metrics, ready-made Prometheus alert rules, and an optional dead-man's-switch ping
 
 ## Architecture
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): service layout, scheduling, incident state machine, failure handling, and the design rationale (why Redis/Celery/Postgres, how incidents are deduplicated, how SSRF/tenancy/retries work).
@@ -77,6 +77,7 @@ All via environment (see `.env.example`):
 |---|---|
 | `DATABASE_URL`, `REDIS_URL` | connections |
 | `SECRET_KEY` | JWT signing key, ≥32 chars. **Generate your own** |
+| `HEARTBEAT_URL`, `HEARTBEAT_INTERVAL_SECONDS` | optional dead-man's-switch ping, so an external service alerts you if Pulse stops scheduling |
 | `ACCESS_TOKEN_MINUTES`, `COOKIE_SECURE` | session lifetime; set `COOKIE_SECURE=true` over HTTPS |
 | `CORS_ORIGINS`, `INTERNAL_API_URL` | allowed origins; where Next.js proxies `/api` |
 | `SSRF_ALLOWED_HOSTS` | **dev only** hostnames exempt from private-IP blocking |
@@ -117,7 +118,7 @@ backend/   FastAPI app (api, core, models, schemas, services, repositories), Ale
 worker/    Celery app, check/notify tasks, HTTP checker, scheduler tasks
 frontend/  Next.js app, components, hooks, unit + e2e tests
 demo-service/  target API with a fail switch
-infrastructure/  Dockerfiles, Prometheus config
+infrastructure/  Dockerfiles, Prometheus config and alert rules
 docs/      ARCHITECTURE, SECURITY, API, DEPLOYMENT, screenshots
 ```
 

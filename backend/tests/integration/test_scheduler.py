@@ -97,3 +97,107 @@ def test_purge_old_results(db):
     db.commit()
     assert sched.purge_old_results() == 1
     assert len(db.scalars(select(CheckResult)).all()) == 1
+
+
+# --- Pulse watching itself: tick timestamp, queue depth, dead-man's-switch ---------------------------------------
+
+
+@pytest.fixture
+def watch(monkeypatch):
+    """Clean Redis keys and metrics, and stub out enqueueing so a tick needs only the DB and Redis."""
+    import redis
+
+    from app.core.config import get_settings
+
+    r = redis.Redis.from_url(get_settings().redis_url)
+    cleanup = lambda: r.delete(sched.HEARTBEAT_LOCK_KEY, *sched.QUEUES)  # noqa: E731
+    cleanup()
+    monkeypatch.setattr(sched.run_monitor_check, "apply_async", lambda **kw: None)
+    sched.scheduler_last_tick_timestamp_seconds.set(0)
+    yield r
+    cleanup()
+
+
+def sample(name, **labels):
+    from prometheus_client import REGISTRY
+
+    return REGISTRY.get_sample_value(name, labels)
+
+
+def test_a_completed_tick_advances_the_heartbeat_timestamp(db, watch):
+    before = datetime.now(UTC).timestamp()
+    sched.enqueue_due_checks()
+    assert sample("scheduler_last_tick_timestamp_seconds") >= before
+
+
+def test_a_failed_tick_does_not_advance_the_timestamp(db, watch, monkeypatch):
+    def broken(*a, **kw):
+        raise ConnectionError("db down")
+
+    monkeypatch.setattr(sched, "schedule_due", broken)
+    with pytest.raises(ConnectionError):
+        sched.enqueue_due_checks()
+    assert sample("scheduler_last_tick_timestamp_seconds") == 0  # a stalled scheduler must look stalled
+
+
+def test_queue_depth_is_exported_per_queue(db, watch):
+    watch.rpush("checks", "a", "b", "c")
+    watch.rpush("notifications", "x")
+    sched.enqueue_due_checks()
+    assert sample("queue_depth", queue="checks") == 3
+    assert sample("queue_depth", queue="notifications") == 1
+
+
+def test_heartbeat_is_not_sent_unless_configured(db, watch, target, monkeypatch):
+    monkeypatch.setattr(sched.get_settings(), "heartbeat_url", "")
+    sched.enqueue_due_checks()
+    assert target.requests == []
+
+
+def test_heartbeat_pings_once_per_interval_across_ticks(db, watch, target, monkeypatch):
+    s = sched.get_settings()
+    monkeypatch.setattr(s, "heartbeat_url", f"http://127.0.0.1:{target.port}/hook")
+    monkeypatch.setattr(s, "heartbeat_interval_seconds", 60)
+    ok = sample("heartbeat_pings_total", outcome="success") or 0
+    for _ in range(5):  # beat ticks every 5 s: five ticks must produce a single ping
+        sched.enqueue_due_checks()
+    assert [r[:2] for r in target.requests] == [("GET", "/hook")]
+    assert sample("heartbeat_pings_total", outcome="success") == ok + 1
+    watch.delete(sched.HEARTBEAT_LOCK_KEY)  # the interval elapsing
+    sched.enqueue_due_checks()
+    assert len(target.requests) == 2
+
+
+def test_a_failing_heartbeat_endpoint_never_breaks_scheduling(db, watch, target, monkeypatch, caplog):
+    s = sched.get_settings()
+    monkeypatch.setattr(s, "heartbeat_url", f"http://127.0.0.1:{target.port}/hook?token=very-secret")
+    target.webhook_status = 500
+    failed = sample("heartbeat_pings_total", outcome="failure") or 0
+    u = make_user(db)
+    m = make_monitor(db, u, interval_seconds=30, next_check_at=datetime.now(UTC) - timedelta(seconds=1))
+    assert sched.enqueue_due_checks() == 1  # still scheduled the due monitor
+    assert sample("heartbeat_pings_total", outcome="failure") == failed + 1
+    assert sample("scheduler_last_tick_timestamp_seconds") > 0
+    assert "very-secret" not in caplog.text  # the URL's token is a credential; never logged
+    _ = m
+
+
+def test_unreachable_heartbeat_endpoint_is_survived(db, watch, monkeypatch):
+    monkeypatch.setattr(sched.get_settings(), "heartbeat_url", "http://127.0.0.1:9/never")
+    failed = sample("heartbeat_pings_total", outcome="failure") or 0
+    sched.enqueue_due_checks()
+    assert sample("heartbeat_pings_total", outcome="failure") == failed + 1
+
+
+def test_no_heartbeat_when_the_tick_itself_fails(db, watch, target, monkeypatch):
+    """The point of a dead-man's switch: a broken scheduler must go quiet, not keep reporting 'alive'."""
+    monkeypatch.setattr(sched.get_settings(), "heartbeat_url", f"http://127.0.0.1:{target.port}/hook")
+
+    def broken(*a, **kw):
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(sched.run_monitor_check, "apply_async", broken)
+    make_monitor(db, make_user(db), next_check_at=datetime.now(UTC) - timedelta(seconds=1))
+    with pytest.raises(ConnectionError):
+        sched.enqueue_due_checks()
+    assert target.requests == []

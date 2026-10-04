@@ -28,6 +28,7 @@ Migrations run automatically in the `migrate` job before the API, worker and sch
 |---|---|
 | `ENVIRONMENT` | `production` (the app refuses the placeholder `SECRET_KEY` otherwise) |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `HEARTBEAT_URL` | optional: ping URL from Healthchecks.io / Cronitor / Better Stack (see below) |
 | `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` | a strong, matching value |
 | `COOKIE_SECURE` | `true` (serve over HTTPS) |
 | `CORS_ORIGINS`, `FRONTEND_URL`, `NEXT_PUBLIC_API_URL` | your public URLs |
@@ -37,6 +38,24 @@ Migrations run automatically in the `migrate` job before the API, worker and sch
 
 Put a TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in front of ports 3000 and 8000. Do not
 expose Postgres or Redis.
+
+## Monitoring Pulse itself
+A monitoring tool that silently stops is worse than none, so Pulse reports on itself in three layers:
+
+1. **Dead-man's switch (recommended, external).** Create a check at a service such as Healthchecks.io, set its period to
+   ~1 minute with a few minutes of grace, and put its ping URL in `HEARTBEAT_URL`. Every scheduler tick that completes
+   successfully (Beat → Redis → worker → Postgres) pings it, at most once per `HEARTBEAT_INTERVAL_SECONDS`. If Pulse, its
+   host or its network dies, the pings stop and *that service* alerts you, which no in-stack alert can do.
+2. **Prometheus alerts.** `infrastructure/monitoring/alerts.yml` alerts on a stalled scheduler
+   (`scheduler_last_tick_timestamp_seconds` not advancing), a down API or worker, backed-up `checks` / `notifications`
+   queues (`queue_depth`), failing notification delivery and a failing heartbeat ping. `docker compose --profile
+   monitoring up` loads it into Prometheus on :9090; point your Alertmanager at that Prometheus to route the alerts.
+   The production compose file does not run Prometheus: mount the same two files into yours.
+3. **Metrics for dashboards:** `scheduler_last_tick_timestamp_seconds`, `queue_depth{queue}` and
+   `heartbeat_pings_total{outcome}` are exported by the worker on `:9101/metrics`.
+
+The tick runs in the worker (Beat only enqueues it), so a dead Beat shows up as a stale timestamp while the worker
+still looks healthy: that is why the alert watches the timestamp rather than just `up`.
 
 ## Notes
 - The frontend image is built with `INTERNAL_API_URL=http://backend:8000` (the compose service name). If your API

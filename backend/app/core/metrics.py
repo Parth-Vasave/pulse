@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 
 monitor_checks_total = Counter("monitor_checks_total", "Monitor checks executed")
 monitor_check_failures_total = Counter("monitor_check_failures_total", "Failed monitor checks", ["error_type"])
@@ -13,3 +13,10 @@ notifications_sent_total = Counter("notifications_sent_total", "Notifications de
 notifications_failed_total = Counter("notifications_failed_total", "Notification delivery failures", ["channel_type"])
 worker_jobs_total = Counter("worker_jobs_total", "Worker jobs started", ["task"])
 worker_job_failures_total = Counter("worker_job_failures_total", "Worker jobs that raised", ["task"])
+
+# Pulse watching itself: Beat -> Redis -> worker -> DB must all be alive for this timestamp to keep advancing.
+scheduler_last_tick_timestamp_seconds = Gauge(
+    "scheduler_last_tick_timestamp_seconds", "Unix time of the last completed scheduler tick"
+)
+queue_depth = Gauge("queue_depth", "Jobs waiting in a Celery queue", ["queue"])
+heartbeat_pings_total = Counter("heartbeat_pings_total", "Dead-man's-switch pings sent", ["outcome"])

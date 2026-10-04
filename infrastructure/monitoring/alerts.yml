@@ -1,0 +1,69 @@
+# Alert rules for Pulse itself: if these fire, your monitors are not being checked or your alerts are not arriving.
+# Loaded by prometheus.yml. Validate with: promtool check rules infrastructure/monitoring/alerts.yml
+groups:
+  - name: pulse-self-monitoring
+    rules:
+      # The scheduler tick runs every 5 s and only completes when Beat, Redis, a worker and Postgres all work, so a
+      # stale timestamp is the single best signal that no monitor is being checked. Beat itself exposes no metrics:
+      # if it dies, the worker stays up but this timestamp stops advancing.
+      - alert: PulseSchedulerStalled
+        expr: time() - max(scheduler_last_tick_timestamp_seconds) > 60
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Pulse is not scheduling checks"
+          description: "No scheduler tick has completed for {{ $value | humanizeDuration }}. Check the scheduler (Beat) container, Redis and Postgres. Monitors are NOT being checked."
+
+      - alert: PulseWorkerDown
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Pulse worker is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.instance }}. Checks and notifications are not being processed."
+
+      - alert: PulseApiDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Pulse API is unreachable"
+          description: "Prometheus cannot scrape {{ $labels.instance }}. The dashboard and status page are down."
+
+      - alert: PulseCheckQueueBacklog
+        expr: max(queue_depth{queue="checks"}) > 500
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Check queue is backing up"
+          description: "{{ $value }} checks are waiting. Workers cannot keep up: add workers or raise concurrency. Stale checks are dropped after one interval, so results will have gaps."
+
+      - alert: PulseNotificationQueueBacklog
+        expr: max(queue_depth{queue="notifications"}) > 100
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Notification queue is backing up"
+          description: "{{ $value }} alerts are waiting to be delivered."
+
+      - alert: PulseNotificationDeliveryFailing
+        expr: increase(notifications_failed_total[15m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "Alert notifications are failing to deliver"
+          description: "{{ $value | printf \"%.0f\" }} {{ $labels.channel_type }} notification(s) failed in the last 15 minutes. Check SMTP and webhook settings."
+
+      - alert: PulseWorkerJobsFailing
+        expr: sum(rate(worker_job_failures_total[10m])) / sum(rate(worker_jobs_total[10m])) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 10% of worker jobs are raising errors"
+          description: "Look for exceptions in the worker logs (database or Redis trouble is the usual cause)."
+
+      - alert: PulseHeartbeatPingFailing
+        expr: increase(heartbeat_pings_total{outcome="failure"}[15m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "The dead-man's-switch ping is failing"
+          description: "Pulse cannot reach HEARTBEAT_URL, so the external watchdog will report Pulse as down."
