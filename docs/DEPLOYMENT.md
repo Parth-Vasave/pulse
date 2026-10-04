@@ -28,6 +28,7 @@ Migrations run automatically in the `migrate` job before the API, worker and sch
 |---|---|
 | `ENVIRONMENT` | `production` (the app refuses the placeholder `SECRET_KEY` otherwise) |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. **Required** (the app refuses to start without it). Set it *before* the first start of this version: the migration encrypts existing headers and webhook URLs with it. Back it up; see [SECURITY.md](SECURITY.md#encryption-at-rest) |
 | `HEARTBEAT_URL` | optional: ping URL from Healthchecks.io / Cronitor / Better Stack (see below) |
 | `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` | a strong, matching value |
 | `COOKIE_SECURE` | `true` (serve over HTTPS) |

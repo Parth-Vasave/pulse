@@ -1,6 +1,8 @@
 """The migrations are what real databases run; the tests build tables from the models. These tests make
 sure the two cannot drift apart, and that every migration can be rolled back."""
 
+import json
+
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
@@ -8,11 +10,13 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401  (register every table on Base.metadata)
 from alembic import command
 from app.core.config import get_settings
 from app.core.database import Base
+from app.models import Monitor, NotificationChannel, User
 
 SCRATCH_DB = "monitor_migration_check"
 
@@ -75,3 +79,48 @@ def test_partial_indexes_that_enforce_invariants_exist_after_migrating(scratch_u
         ).scalar_one()
     engine.dispose()
     assert "UNIQUE" in row and "status" in row and "open" in row
+
+
+def test_secrets_migration_encrypts_existing_plaintext_rows_and_can_be_reversed(scratch_url):
+    """Real databases hold plaintext headers/webhook URLs from before 0003; upgrading must protect them."""
+    from app.core.crypto import is_envelope
+
+    cfg = _alembic_config(scratch_url)
+    command.upgrade(cfg, "0002")
+    engine = create_engine(scratch_url)
+    headers, hook = {"Authorization": "Bearer legacy-secret"}, {"url": "https://hooks.example.com/legacy-secret"}
+    # 0003 changes data, not schema, so the ORM can create the rows; the secrets are then forced back to plaintext.
+    with Session(engine) as session:
+        user = User(email="m@example.com", password_hash="x")
+        session.add(user)
+        session.flush()
+        mon_a = Monitor(user_id=user.id, name="a", url="https://a.example.com")
+        mon_b = Monitor(user_id=user.id, name="b", url="https://b.example.com")
+        chan = NotificationChannel(user_id=user.id, type="webhook", name="w")
+        session.add_all([mon_a, mon_b, chan])
+        session.commit()
+        ids = (mon_a.id, mon_b.id, chan.id)
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE monitors SET headers = CAST(:h AS jsonb) WHERE id = :i"),
+            {"h": json.dumps(headers), "i": ids[0]},
+        )
+        conn.execute(
+            text("UPDATE notification_channels SET configuration = CAST(:c AS jsonb) WHERE id = :i"),
+            {"c": json.dumps(hook), "i": ids[2]},
+        )
+
+    def stored():
+        with engine.connect() as conn:
+            h = conn.execute(text("SELECT headers FROM monitors ORDER BY id")).scalars().all()
+            c = conn.execute(text("SELECT configuration FROM notification_channels")).scalar_one()
+        return h, c
+
+    command.upgrade(cfg, "head")
+    h, c = stored()
+    assert is_envelope(h[0]) and h[1] == {} and is_envelope(c)
+    assert "legacy-secret" not in str(h) + str(c)
+
+    command.downgrade(cfg, "0002")
+    assert stored() == ([headers, {}], hook)
+    engine.dispose()

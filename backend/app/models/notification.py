@@ -2,9 +2,9 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.crypto import EncryptedJSON
 from app.core.database import Base
 from app.models._common import created_col
 
@@ -16,7 +16,7 @@ class NotificationChannel(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     type: Mapped[str] = mapped_column(String(16))  # email | webhook | discord
     name: Mapped[str] = mapped_column(String(120))
-    configuration: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    configuration: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = created_col()
 

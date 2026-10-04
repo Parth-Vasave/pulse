@@ -5,6 +5,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Te
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.crypto import EncryptedJSON
 from app.core.database import Base
 from app.models._common import created_col, updated_col
 
@@ -21,7 +22,7 @@ class Monitor(Base):
     name: Mapped[str] = mapped_column(String(120))
     url: Mapped[str] = mapped_column(String(2048))
     method: Mapped[str] = mapped_column(String(8), default="GET")
-    headers: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    headers: Mapped[dict[str, str]] = mapped_column(EncryptedJSON, default=dict)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     expected_status_code: Mapped[int] = mapped_column(Integer, default=200)
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=10)

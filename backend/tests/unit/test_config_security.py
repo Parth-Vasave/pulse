@@ -1,4 +1,5 @@
 import pytest
+from cryptography.fernet import Fernet
 from pydantic import ValidationError
 
 from app.core.config import Settings
@@ -28,7 +29,8 @@ def test_the_shipped_example_secret_is_refused_in_production(weak):
 
 
 def test_strong_secret_is_accepted_in_production():
-    assert make(environment="production", secret_key=STRONG).secret_key == STRONG
+    key = Fernet.generate_key().decode()
+    assert make(environment="production", secret_key=STRONG, encryption_key=key).secret_key == STRONG
 
 
 def test_short_secret_is_still_rejected_everywhere():

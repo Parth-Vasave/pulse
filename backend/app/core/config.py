@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from cryptography.fernet import Fernet
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +20,10 @@ class Settings(BaseSettings):
     access_token_minutes: int = 720
     cookie_secure: bool = False
     cookie_name: str = "access_token"
+
+    # Encrypts secrets stored in Postgres (monitor headers, notification channel config). One Fernet key, or several
+    # comma-separated for rotation: the first encrypts, all of them decrypt. Required outside development.
+    encryption_key: str = ""
 
     cors_origins: str = "http://localhost:3000"
     frontend_url: str = "http://localhost:3000"
@@ -64,10 +69,33 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _require_valid_encryption_key(self) -> "Settings":
+        """Fail fast: stored secrets are only as safe as the key, and a malformed key would fail on first write."""
+        if not self.encryption_key_list:
+            if self.environment.lower() not in _DEV_ENVIRONMENTS:
+                raise ValueError(
+                    "ENCRYPTION_KEY is required outside development. Generate one with: "
+                    "python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                )
+            return self
+        for key in self.encryption_key_list:
+            try:
+                Fernet(key)
+            except ValueError as exc:
+                raise ValueError(
+                    "ENCRYPTION_KEY must be Fernet keys (32 url-safe base64 bytes), comma-separated"
+                ) from exc
+        return self
+
+    @model_validator(mode="after")
     def _require_http_heartbeat_url(self) -> "Settings":
         if self.heartbeat_url and not self.heartbeat_url.lower().startswith(("http://", "https://")):
             raise ValueError("HEARTBEAT_URL must be an http(s) URL")
         return self
+
+    @property
+    def encryption_key_list(self) -> list[str]:
+        return [k.strip() for k in self.encryption_key.split(",") if k.strip()]
 
     @property
     def cors_origin_list(self) -> list[str]:

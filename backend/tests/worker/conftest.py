@@ -15,6 +15,7 @@ class Target:
     def __init__(self) -> None:
         self.healthy = True
         self.requests: list[tuple[str, str, bytes]] = []  # (method, path, body)
+        self.request_headers: list[dict[str, str]] = []  # parallel to `requests`
         self.webhook_status = 200
         target = self
 
@@ -26,6 +27,7 @@ class Target:
                 length = int(self.headers.get("content-length") or 0)
                 body = self.rfile.read(length) if length else b""
                 target.requests.append((self.command, self.path, body))
+                target.request_headers.append(dict(self.headers.items()))
                 if self.path == "/slow":
                     time.sleep(2)
                 if self.path == "/redirect":

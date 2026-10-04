@@ -112,7 +112,7 @@ Closing is **not** recovery, so no "recovered" notification is sent and `inciden
 
 ## Database
 
-`users` → `monitors` → `check_results`, `incidents` → `incident_events`, `notifications`; `notification_channels` and `api_keys` hang off `users`. Notable indexes: `check_results(monitor_id, checked_at)` (all analytics), partial `monitors(next_check_at) WHERE enabled` (scheduler), partial unique open-incident index, `incidents(status)`. Results older than `CHECK_RETENTION_DAYS` (35) are purged hourly in batches. Migrations: Alembic, verified up/down in CI.
+`users` → `monitors` → `check_results`, `incidents` → `incident_events`, `notifications`; `notification_channels` and `api_keys` hang off `users`. Notable indexes: `check_results(monitor_id, checked_at)` (all analytics), partial `monitors(next_check_at) WHERE enabled` (scheduler), partial unique open-incident index, `incidents(status)`. `monitors.headers` and `notification_channels.configuration` hold secrets and are encrypted at the column level (see SECURITY.md). Results older than `CHECK_RETENTION_DAYS` (35) are purged hourly in batches. Migrations: Alembic, verified up/down in CI.
 
 ## Metrics definitions
 
