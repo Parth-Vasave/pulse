@@ -84,7 +84,7 @@ export function MonitorForm({ initial = DEFAULTS, submitLabel, onSubmit, onCance
         <h2 className="font-semibold">Schedule and alerting</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Check every (seconds)" htmlFor="interval_seconds" hint="30 to 86400"><input {...text("interval_seconds")} type="number" min={30} max={86400} required /></Field>
-          <Field label="Retry on network errors" htmlFor="check_retries" hint="Extra immediate attempts after a timeout or connection failure (0–3)."><input {...text("check_retries")} type="number" min={0} max={3} /></Field>
+          <Field label="Retry on network errors" htmlFor="check_retries" hint="Extra immediate attempts after a timeout or connection failure (0–3). All attempts must fit within the check interval."><input {...text("check_retries")} type="number" min={0} max={3} /></Field>
           <Field label="Open an incident after" htmlFor="failure_threshold" hint="Consecutive failed checks (1–10)."><input {...text("failure_threshold")} type="number" min={1} max={10} required /></Field>
           <Field label="Resolve after" htmlFor="recovery_threshold" hint="Consecutive passing checks (1–10)."><input {...text("recovery_threshold")} type="number" min={1} max={10} required /></Field>
         </div>

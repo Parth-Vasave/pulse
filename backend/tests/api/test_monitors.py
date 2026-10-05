@@ -46,6 +46,19 @@ def test_invalid_configs_rejected(auth_client, override):
     assert auth_client.post("/api/monitors", json=VALID | override).status_code == 422
 
 
+def test_check_must_fit_within_its_interval(auth_client):
+    # 10 s x 3 attempts + 3 s backoff = 33 s: overlaps a 30 s interval, fits a 60 s one.
+    slow = VALID | {"timeout_seconds": 10, "check_retries": 2}
+    r = auth_client.post("/api/monitors", json=slow | {"interval_seconds": 30})
+    assert r.status_code == 422 and "33s" in r.json()["error"]["details"][0]["message"]
+    m = auth_client.post("/api/monitors", json=slow | {"interval_seconds": 60}).json()
+    assert auth_client.patch(f"/api/monitors/{m['id']}", json={"interval_seconds": 30}).status_code == 422
+    assert (
+        auth_client.post("/api/monitors", json=VALID | {"timeout_seconds": 30, "interval_seconds": 30}).status_code
+        == 201
+    )
+
+
 @pytest.mark.parametrize(
     "url",
     [

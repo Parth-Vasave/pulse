@@ -28,3 +28,14 @@ def retry_call(
                 raise
             sleep(backoff_delay(attempt, base, cap))
             attempt += 1
+
+
+# Backoff between a monitor's immediate retries (check_retries): 1 s, 2 s, 4 s.
+CHECK_RETRY_BASE = 1.0
+CHECK_RETRY_CAP = 5.0
+
+
+def max_check_seconds(timeout_seconds: float, retries: int) -> float:
+    """Worst-case wall time of one check: every attempt runs to its timeout, plus the backoff between them."""
+    backoff = sum(backoff_delay(i, CHECK_RETRY_BASE, CHECK_RETRY_CAP) for i in range(retries))
+    return timeout_seconds * (retries + 1) + backoff

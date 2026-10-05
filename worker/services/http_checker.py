@@ -11,7 +11,7 @@ import httpx
 from app.core.logging import get_logger
 from app.services.assertions import MAX_BODY_BYTES, ResponseView, evaluate_all
 from app.services.incident_service import CheckOutcome
-from app.services.retry import retry_call
+from app.services.retry import CHECK_RETRY_BASE, CHECK_RETRY_CAP, retry_call
 from app.services.safe_http import build_guarded_client
 from app.services.ssrf import Resolver, SSRFError
 
@@ -61,12 +61,18 @@ def _classify_transport_error(exc: Exception) -> tuple[str, str]:
     return INVALID_RESPONSE, _truncate(f"{type(exc).__name__}: {exc}")
 
 
-def _once(client: httpx.Client, spec: CheckSpec) -> tuple[httpx.Response, int, str]:
-    """One request. Returns (response, ttfb_ms, body_text). Body is read only if assertions need it."""
+def _once(spec: CheckSpec, resolver: Resolver | None) -> tuple[httpx.Response, int, str]:
+    """One request. Returns (response, ttfb_ms, body_text). Body is read only if assertions need it.
+
+    A fresh client per attempt, so each attempt gets the full `timeout_seconds` as its overall deadline.
+    """
     started = time.monotonic()
-    with client.stream(
-        spec.method, spec.url, headers=spec.headers, content=spec.body.encode() if spec.body else None
-    ) as response:
+    with (
+        build_guarded_client(spec.timeout_seconds, resolver) as client,
+        client.stream(
+            spec.method, spec.url, headers=spec.headers, content=spec.body.encode() if spec.body else None
+        ) as response,
+    ):
         ttfb_ms = int((time.monotonic() - started) * 1000)
         text = ""
         if spec.assertions:
@@ -91,17 +97,16 @@ def run_check(spec: CheckSpec, resolver: Resolver | None = None, sleep=time.slee
         return CheckOutcome(checked_at, False, status, rt, elapsed_ms(), kind, _truncate(message))
 
     try:
-        with build_guarded_client(spec.timeout_seconds, resolver) as client:
-            response, rt_ms, body = retry_call(
-                lambda: _once(client, spec),
-                max_retries=spec.retries,
-                retry_on=_RETRYABLE,
-                sleep=sleep,
-                base=1.0,
-                cap=5.0,
-            )
-            status = response.status_code
-            headers = dict(response.headers)
+        response, rt_ms, body = retry_call(
+            lambda: _once(spec, resolver),
+            max_retries=spec.retries,
+            retry_on=_RETRYABLE,
+            sleep=sleep,
+            base=CHECK_RETRY_BASE,
+            cap=CHECK_RETRY_CAP,
+        )
+        status = response.status_code
+        headers = dict(response.headers)
     except SSRFError as exc:
         return failure(BLOCKED_TARGET, f"Target blocked: {exc}")
     except httpx.HTTPError as exc:

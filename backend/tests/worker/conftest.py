@@ -30,6 +30,23 @@ class Target:
                 target.request_headers.append(dict(self.headers.items()))
                 if self.path == "/slow":
                     time.sleep(2)
+                if self.path in ("/drip", "/drip-body"):
+                    # One byte every 0.2 s, so no single read ever times out. /drip trickles from the status
+                    # line on; /drip-body sends the headers at once and trickles only the body.
+                    head = b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n"
+                    raw = head + b"x" * 1000
+                    try:
+                        if self.path == "/drip-body":
+                            self.wfile.write(head)
+                            raw = raw[len(head) :]
+                        for i in range(len(raw)):
+                            self.wfile.write(raw[i : i + 1])
+                            self.wfile.flush()
+                            time.sleep(0.2)
+                    except OSError:  # the client gave up
+                        pass
+                    self.close_connection = True
+                    return
                 if self.path == "/redirect":
                     self.send_response(302)
                     self.send_header("Location", "http://127.0.0.1:1/internal")

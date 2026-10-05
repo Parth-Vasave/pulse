@@ -4,6 +4,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.services.retry import max_check_seconds
+
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 _FORBIDDEN_HEADERS = {"host", "content-length", "transfer-encoding", "connection"}
 
@@ -83,6 +85,17 @@ class MonitorCreate(BaseModel):
     def body_vs_method(self) -> "MonitorCreate":
         if self.body and self.method == "GET":
             raise ValueError("GET requests cannot have a body")
+        return self
+
+    @model_validator(mode="after")
+    def check_fits_interval(self) -> "MonitorCreate":
+        # A check that can outlast its interval overlaps the next one against the same target.
+        worst = max_check_seconds(self.timeout_seconds, self.check_retries)
+        if worst > self.interval_seconds:
+            raise ValueError(
+                f"timeout and retries allow a check to take up to {worst:g}s, longer than the "
+                f"{self.interval_seconds}s interval; lower the timeout or retries, or check less often"
+            )
         return self
 
 
