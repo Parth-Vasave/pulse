@@ -23,7 +23,7 @@
 
 **Why separate workers from FastAPI?** A check can take up to 30 s plus retries. Running it in a request handler would tie API capacity to the slowest customer endpoint, and a burst of monitors would starve user traffic. Workers fail, restart and scale independently; the API only reads and writes rows.
 
-**Why Celery + Redis?** Mature retries, routing, time limits and late acknowledgement for little code. Redis is already needed for rate limiting. Checks are I/O-bound, so workers use the *threads* pool: cheap concurrency (20 per container) and one process, which makes in-process Prometheus counters accurate. Celery's weakness (visibility timeout semantics) is why delivery is `acks_late` and every task is safe to run twice.
+**Why Celery + Redis?** Mature retries, routing and late acknowledgement for little code. Redis is already needed for rate limiting. Checks are I/O-bound, so workers use the *threads* pool: cheap concurrency (20 per container) and one process, which makes in-process Prometheus counters accurate. The threads pool does not enforce Celery task time limits, so checks are bounded by the HTTP client itself (see step 2 below). Celery's weakness (visibility timeout semantics) is why delivery is `acks_late` and every task is safe to run twice.
 
 **Why PostgreSQL?** Relational integrity (FKs, cascade delete), partial indexes, `FOR UPDATE SKIP LOCKED`, `date_bin` and `percentile_cont` for analytics. One database does queueing-state, tenancy and metrics.
 
@@ -39,7 +39,7 @@
 ## Check execution (worker)
 
 1. Load the monitor config in a short session, then **release the DB connection** (no connection is held during a slow HTTP call).
-2. `http_checker.run_check` builds an SSRF-guarded client and performs the request with hard timeouts, redirects off, body read only when assertions need it (capped at 1 MB).
+2. `http_checker.run_check` builds an SSRF-guarded client and performs the request with redirects off, under one **overall deadline** per attempt (`timeout_seconds` caps the whole request, not each socket read, so a server trickling bytes can't hold a worker thread), body read only when assertions need it (capped at 1 MB).
 3. The outcome is classified: `timeout`, `dns_failure`, `connect_failure`, `invalid_response`, `unexpected_status`, `http_error`, `assertion_failed`, `slow_response`, `blocked_target`. Target misbehaviour is an *outcome*, never an exception.
 4. `incident_service.record_check` runs in **one transaction under a row lock** on the monitor: insert the result, advance counters, open/resolve incidents, create `pending` notification rows.
 5. After commit, notification jobs are enqueued. If Redis is down this fails soft; the sweeper re-enqueues from the database.
@@ -71,7 +71,7 @@ An open incident and the UP/DOWN streaks describe *one monitor aimed at one targ
 
 Closing is **not** recovery, so no "recovered" notification is sent and `incidents_resolved_total` is not incremented.
 
-**Race: a check already running during the edit.** The worker records the `(url, method)` it actually checked. `record_check` runs under the monitor's row lock and **discards** the result if the monitor has since been paused or pointed elsewhere (`update_monitor` takes the same lock), so a stale result can never flip a paused monitor to DOWN or attribute the old API's failure to the new one.
+**Race: a check already running during the edit.** The worker records the `(url, method)` it actually checked. `record_check` runs under the monitor's row lock and **discards** the result if the monitor has since been paused or pointed elsewhere (`update_monitor` takes the same lock), so a stale result can never flip a paused monitor to DOWN or attribute the old API's failure to the new one. It likewise discards a result that started before the last recorded one: checks on a slow target can overlap and finish out of order, and the older result must not overwrite the newer health state.
 
 ## Timeline
 
@@ -91,7 +91,7 @@ Closing is **not** recovery, so no "recovered" notification is sent and `inciden
 
 | What | Policy |
 |---|---|
-| Monitored request | Per-monitor `check_retries` (0–3, default **0**), only on timeout/connect errors, backoff 1 s, 2 s, 4 s capped at 5 s. HTTP errors are never retried; they are valid results. |
+| Monitored request | Per-monitor `check_retries` (0–3, default **0**), only on timeout/connect errors, backoff 1 s, 2 s, 4 s capped at 5 s. HTTP errors are never retried; they are valid results. Validation requires timeout × attempts + backoff ≤ interval, so one check can't overlap the next. |
 | DB errors in a check task | `autoretry_for=OperationalError`, exponential backoff + jitter, max 5 |
 | Notifications | See above |
 | Scheduler enqueue | Transaction rollback, retried next 5 s tick |

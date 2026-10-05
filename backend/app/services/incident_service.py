@@ -157,12 +157,18 @@ def record_check(
     `target` is the (url, method) the check was actually run against. A check that was already in
     flight when the monitor was paused or pointed at a different API is stale: its result says
     nothing about the monitor's current configuration, so it is discarded.
+
+    So is a check that started before the last recorded one. Checks on a slow target can overlap and
+    finish out of order; applying the older result last would move health backwards.
     """
     monitor = db.scalars(select(Monitor).where(Monitor.id == monitor_id).with_for_update()).first()
     if monitor is None:
         return []  # deleted while the job was queued
     if not monitor.enabled or (target is not None and target != (monitor.url, monitor.method)):
         log.info("stale_check_discarded", extra={"monitor_id": monitor_id})
+        return []
+    if monitor.last_checked_at is not None and outcome.checked_at < monitor.last_checked_at:
+        log.info("out_of_order_check_discarded", extra={"monitor_id": monitor_id})
         return []
 
     db.add(

@@ -27,8 +27,10 @@ log = get_logger("worker.check")
     retry_backoff_max=60,
     retry_jitter=True,
     max_retries=5,
-    soft_time_limit=100,
-    time_limit=120,
+    # A backstop only: the threads pool ignores time limits. What actually bounds a check is the overall
+    # per-request deadline in safe_http. Kept above the worst case the schema allows (30 s x 4 attempts + 7 s).
+    soft_time_limit=150,
+    time_limit=180,
 )
 def run_monitor_check(monitor_id: int) -> None:
     worker_jobs_total.labels("run_monitor_check").inc()

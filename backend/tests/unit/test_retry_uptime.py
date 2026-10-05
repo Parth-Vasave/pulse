@@ -1,12 +1,18 @@
 import pytest
 
-from app.services.retry import backoff_delay, retry_call
+from app.services.retry import backoff_delay, max_check_seconds, retry_call
 from app.services.uptime import uptime_percentage
 
 
 def test_backoff_sequence_and_cap():
     assert [backoff_delay(i) for i in range(4)] == [1, 2, 4, 8]
     assert backoff_delay(20, cap=60) == 60
+
+
+def test_max_check_seconds_counts_every_attempt_and_the_backoff_between():
+    assert max_check_seconds(30, 0) == 30
+    assert max_check_seconds(10, 2) == 10 * 3 + 1 + 2
+    assert max_check_seconds(30, 3) == 30 * 4 + 1 + 2 + 4
 
 
 def test_retry_succeeds_after_transient_failures():

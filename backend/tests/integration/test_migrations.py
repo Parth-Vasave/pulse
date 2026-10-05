@@ -124,3 +124,39 @@ def test_secrets_migration_encrypts_existing_plaintext_rows_and_can_be_reversed(
     command.downgrade(cfg, "0002")
     assert stored() == ([headers, {}], hook)
     engine.dispose()
+
+
+def test_retries_migration_fits_existing_checks_into_their_interval(scratch_url):
+    """Rows saved before the timeout x attempts <= interval rule must stay editable, so 0004 lowers their retries."""
+    cfg = _alembic_config(scratch_url)
+    command.upgrade(cfg, "0003")
+    engine = create_engine(scratch_url)
+    # (timeout, retries, interval) -> retries after the migration
+    cases = {
+        (30, 3, 30): 0,  # every retry overruns
+        (10, 3, 30): 1,  # 10 x 2 + 1 = 21 fits; 10 x 3 + 3 = 33 doesn't
+        (10, 3, 60): 3,  # 10 x 4 + 7 = 47 already fits
+        (5, 0, 30): 0,
+    }
+    with Session(engine) as session:
+        user = User(email="r@example.com", password_hash="x")
+        session.add(user)
+        session.flush()
+        session.add_all(
+            Monitor(
+                user_id=user.id,
+                name=f"m{i}",
+                url="https://a.example.com",
+                timeout_seconds=t,
+                check_retries=r,
+                interval_seconds=iv,
+            )
+            for i, (t, r, iv) in enumerate(cases)
+        )
+        session.commit()
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as conn:
+        retries = conn.execute(text("SELECT check_retries FROM monitors ORDER BY id")).scalars().all()
+    assert retries == list(cases.values())
+    engine.dispose()

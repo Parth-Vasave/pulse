@@ -108,12 +108,14 @@ def test_concurrent_checks_for_one_monitor_make_one_incident(db):
     mid = m.id
     barrier = threading.Barrier(4)
     errors = []
+    # One timestamp for all: otherwise whichever older check takes the lock last is discarded as out of order.
+    failed = outcome(False)
 
     def worker():
         s = SessionLocal()
         try:
             barrier.wait()
-            record_check(s, mid, outcome(False))
+            record_check(s, mid, failed)
             s.commit()
         except Exception as e:  # noqa: BLE001
             errors.append(e)
@@ -127,3 +129,17 @@ def test_concurrent_checks_for_one_monitor_make_one_incident(db):
     assert not errors
     assert db.scalar(select(func.count()).select_from(Incident)) == 1
     assert db.scalar(select(func.count()).select_from(CheckResult)) == 4
+
+
+def test_check_finishing_after_a_newer_one_is_discarded(db):
+    """Overlapping checks on a slow target can finish out of order; the older result must not win."""
+    u = make_user(db)
+    m = make_monitor(db, u, failure_threshold=1)
+    older, newer = outcome(False), outcome(True)
+    record_check(db, m.id, newer)
+    assert record_check(db, m.id, older) == []  # with failure_threshold=1, applying it would open an incident
+    db.commit()
+    monitor = db.get(Monitor, m.id)
+    assert monitor.status == "up" and monitor.last_checked_at == newer.checked_at
+    assert db.scalar(select(func.count()).select_from(CheckResult)) == 1
+    assert db.scalar(select(func.count()).select_from(Incident)) == 0

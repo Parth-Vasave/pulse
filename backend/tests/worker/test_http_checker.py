@@ -35,6 +35,20 @@ def test_timeout_is_bounded_and_classified(target):
     assert out.error_type == hc.TIMEOUT and out.check_duration_ms < 1900
 
 
+@pytest.mark.parametrize("path", ["/drip", "/drip-body"])
+def test_timeout_bounds_the_whole_request_not_each_read(target, path):
+    # A server trickling bytes never trips a per-read timeout; the overall deadline still ends the check.
+    # Assertions make the checker read the body, so /drip-body is cut off mid-body.
+    out = run_check(spec(target, path, timeout_seconds=1, assertions=[{"type": "body_contains", "value": "x"}]))
+    assert out.error_type == hc.TIMEOUT and out.check_duration_ms < 1900
+
+
+def test_each_retry_gets_its_own_full_timeout(target):
+    sleeps = []
+    out = run_check(spec(target, "/drip", timeout_seconds=1, retries=1), sleep=sleeps.append)
+    assert out.error_type == hc.TIMEOUT and sleeps == [1] and 1900 < out.check_duration_ms < 3900
+
+
 def test_loopback_literal_is_blocked():
     out = run_check(CheckSpec(url="http://127.0.0.1:9/", timeout_seconds=2))
     assert out.error_type == hc.BLOCKED_TARGET
