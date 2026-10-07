@@ -250,7 +250,10 @@ def recent_traces(
     rn = func.row_number().over(partition_by=CheckResult.monitor_id, order_by=CheckResult.checked_at.desc())
     ranked = (
         select(
-            CheckResult.monitor_id, CheckResult.success, CheckResult.response_time_ms, CheckResult.checked_at,
+            CheckResult.monitor_id,
+            CheckResult.success,
+            CheckResult.response_time_ms,
+            CheckResult.checked_at,
             rn.label("rn"),
         )
         .where(CheckResult.monitor_id.in_(monitor_ids))
