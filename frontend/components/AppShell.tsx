@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Wordmark } from "@/components/Logo";
+import { Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { Button, Spinner } from "@/components/ui";
 
 export interface CurrentUser { id: number; email: string; created_at: string }
 interface UserCtx { user: CurrentUser; refresh: () => Promise<void> }
@@ -18,10 +19,55 @@ export function useUser(): UserCtx {
 }
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/incidents", label: "Incidents" },
   { href: "/settings", label: "Settings" },
 ];
+
+/** Top nav whose underline slides to the selected item. It moves on click, before the route has loaded. */
+function MainNav({ current }: { current: string | null }) {
+  // A click wins only until the route changes, so back/forward and links outside the nav still move the underline.
+  const [clicked, setClicked] = useState<{ href: string; from: string | null } | null>(null);
+  const selected = clicked && clicked.from === current ? clicked.href : current;
+  const [bar, setBar] = useState<{ left: number; width: number } | null>(null);
+  const [animate, setAnimate] = useState(false);
+  const links = useRef(new Map<string, HTMLAnchorElement>());
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = selected ? links.current.get(selected) : undefined;
+      setBar(el ? { left: el.offsetLeft + 8, width: el.offsetWidth - 16 } : null);
+    };
+    measure();
+    // Re-measure once web fonts settle or the window resizes, since both change link widths.
+    document.fonts?.ready.then(measure);
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [selected]);
+
+  // Skip the transition on the first placement so the underline doesn't fly in from the left edge.
+  useEffect(() => {
+    if (bar && !animate) requestAnimationFrame(() => setAnimate(true));
+  }, [bar, animate]);
+
+  return (
+    <nav aria-label="Main" className="relative flex h-full items-center gap-0.5 max-sm:-ml-2">
+      {bar && (
+        <span aria-hidden
+          className={`absolute -bottom-px h-px bg-ink ${animate ? "transition-[left,width] duration-300 ease-[var(--ease-out-expo)]" : ""}`}
+          style={{ left: bar.left, width: bar.width }} />
+      )}
+      {NAV.map((n) => (
+        <Link key={n.href} href={n.href} aria-current={current === n.href ? "page" : undefined}
+          ref={(el) => { if (el) links.current.set(n.href, el); else links.current.delete(n.href); }}
+          onClick={(e) => { if (!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)) setClicked({ href: n.href, from: current }); }}
+          className={`rounded-md px-2 py-1 text-[15px] transition-colors duration-200 hover:bg-raised ${selected === n.href ? "text-ink" : "text-muted hover:text-ink"}`}>
+          {n.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -36,14 +82,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     api<CurrentUser>("/auth/me").then(setUser).catch(() => router.replace("/login"));
   }, [router]);
 
-  async function logout() {
-    await api("/auth/logout", { method: "POST" }).catch(() => undefined);
-    router.replace("/login");
-  }
+  if (!user) return <div className="mx-auto max-w-6xl px-4"><Spinner label="Checking your session" /></div>;
 
-  if (!user) return <Spinner label="Checking your session" />;
-
-  const active = (href: string) => (href === "/" ? pathname === "/" || pathname.startsWith("/monitors") : pathname.startsWith(href));
+  const active = (href: string) => (href === "/dashboard" ? pathname.startsWith("/dashboard") || pathname.startsWith("/monitors") : pathname.startsWith(href));
 
   return (
     <UserContext.Provider value={{ user, refresh }}>
@@ -51,31 +92,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-surface focus:p-2">
         Skip to content
       </a>
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-                <path d="M2 12h4l3-8 4 16 3-8h6" fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Pulse
-            </Link>
-            <nav aria-label="Main" className="flex gap-1">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${active(n.href) ? "bg-paused-bg text-ink" : "text-muted hover:text-ink"}`}>
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="hidden text-muted sm:inline">{user.email}</span>
-            <Button variant="ghost" size="sm" onClick={logout}>Log out</Button>
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/85 backdrop-blur-md">
+        <div className="mx-auto flex h-12 max-w-6xl items-center gap-6 px-4 max-sm:gap-4">
+          <Link href="/dashboard" aria-label="Pulse, dashboard" className="rounded-md">
+            <Wordmark />
+          </Link>
+          <div className="h-full">
+            <MainNav current={NAV.find((n) => active(n.href))?.href ?? null} />
           </div>
         </div>
       </header>
-      <main id="main" className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main id="main" className="mx-auto max-w-6xl px-4 pb-24 pt-8 sm:pt-10">{children}</main>
     </div>
     </UserContext.Provider>
   );

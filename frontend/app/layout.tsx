@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Instrument_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
-const font = Instrument_Sans({ subsets: ["latin"], variable: "--font-instrument", display: "swap" });
+const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "Pulse – API monitoring", template: "%s · Pulse" },
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={font.variable}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body className="min-h-screen antialiased"><ToastProvider>{children}</ToastProvider></body>
     </html>
   );

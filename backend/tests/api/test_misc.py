@@ -306,3 +306,15 @@ def test_heartbeats_scoped_and_ordered(auth_client, other_client, db):
     add_checks(db, m["id"], [None], success=False, age=timedelta(minutes=1))
     assert auth_client.get("/api/monitors/heartbeats").json() == {str(m["id"]): [True, True, False]}
     assert other_client.get("/api/monitors/heartbeats").json() == {}
+
+
+def test_traces_scoped_and_ordered(auth_client, other_client, db):
+    m = auth_client.post("/api/monitors", json=VALID).json()
+    add_checks(db, m["id"], [10, 20], success=True, age=timedelta(minutes=10))
+    add_checks(db, m["id"], [None], success=False, age=timedelta(minutes=1))
+    trace = auth_client.get("/api/monitors/traces").json()[str(m["id"])]
+    assert [c["ok"] for c in trace] == [True, True, False]
+    assert sorted(c["ms"] for c in trace[:2]) == [10, 20] and trace[2]["ms"] is None
+    times = [datetime.fromisoformat(c["at"]) for c in trace]
+    assert times == sorted(times) and all(t.tzinfo is not None for t in times)
+    assert other_client.get("/api/monitors/traces").json() == {}

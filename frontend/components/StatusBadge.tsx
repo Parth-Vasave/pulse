@@ -1,30 +1,18 @@
 import type { DisplayStatus } from "@/lib/types";
 
-// Status is never color-only: each state has its own icon shape and a text label.
-const CONFIG: Record<DisplayStatus, { label: string; cls: string; icon: React.ReactNode }> = {
-  up: {
-    label: "UP", cls: "bg-up-bg text-up",
-    icon: <path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />,
-  },
-  down: {
-    label: "DOWN", cls: "bg-down-bg text-down",
-    icon: <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />,
-  },
-  paused: {
-    label: "PAUSED", cls: "bg-paused-bg text-paused",
-    icon: <path d="M5.5 4v8M10.5 4v8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />,
-  },
-  unknown: {
-    label: "PENDING", cls: "bg-paused-bg text-paused",
-    icon: <circle cx="8" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="2.5 2.5" />,
-  },
+// Status is never color-only: each state has its own mark shape and a text label.
+const CONFIG: Record<DisplayStatus, { label: string; text: string; mark: React.ReactNode }> = {
+  up: { label: "UP", text: "text-ink-2", mark: <circle cx="5" cy="5" r="3.5" fill="var(--up)" /> },
+  down: { label: "DOWN", text: "text-down", mark: <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="var(--down)" /> },
+  paused: { label: "PAUSED", text: "text-muted", mark: <path d="M3 1.5v7M7 1.5v7" stroke="var(--paused)" strokeWidth="1.6" strokeLinecap="round" /> },
+  unknown: { label: "PENDING", text: "text-muted", mark: <circle cx="5" cy="5" r="3.2" fill="none" stroke="var(--paused)" strokeWidth="1.3" strokeDasharray="2 1.6" /> },
 };
 
 export function StatusBadge({ status }: { status: DisplayStatus }) {
   const c = CONFIG[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${c.cls}`}>
-      <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>{c.icon}</svg>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-[13px] font-medium tracking-[0.06em] ${c.text}`}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>{c.mark}</svg>
       {c.label}
     </span>
   );

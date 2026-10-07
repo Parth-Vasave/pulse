@@ -27,9 +27,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(92vw,22rem)] flex-col gap-2">
         {toasts.map((t) => (
           <div key={t.id} role={t.tone === "error" ? "alert" : "status"}
-            className={`pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-surface p-3 text-sm shadow-lg ${t.tone === "error" ? "border-down/50" : "border-up/50"}`}>
-            <span className={`mt-0.5 ${t.tone === "error" ? "text-down" : "text-up"}`}>{t.tone === "error" ? <AlertIcon /> : <CheckIcon />}</span>
-            <p className="flex-1">{t.text}</p>
+            className="toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg border border-line-strong bg-surface px-3 py-2.5 text-[15px] shadow-[0_12px_32px_-8px_rgb(0_0_0/0.25)]">
+            <span className={`mt-0.5 ${t.tone === "error" ? "text-down" : "text-ink"}`}>{t.tone === "error" ? <AlertIcon /> : <CheckIcon />}</span>
+            <p className="flex-1 text-ink">{t.text}</p>
             <button onClick={() => dismiss(t.id)} aria-label="Dismiss" className="rounded p-0.5 text-muted hover:text-ink"><XIcon width={14} height={14} /></button>
           </div>
         ))}

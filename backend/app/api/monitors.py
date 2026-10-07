@@ -31,6 +31,17 @@ def heartbeats(user: User = Depends(get_current_user), db: Session = Depends(get
     return stats.recent_outcomes(db, ids)
 
 
+@router.get("/traces")
+def traces(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict[int, list[dict]]:
+    """Recent checks per monitor as {ok, ms, at}, oldest first: what the dashboard plot draws.
+    120 checks covers the plot's last hour even at the shortest (30s) interval."""
+    ids = list(db.scalars(select(Monitor.id).where(Monitor.user_id == user.id)))
+    return {
+        mid: [{"ok": ok, "ms": ms, "at": at.isoformat()} for ok, ms, at in checks]
+        for mid, checks in stats.recent_traces(db, ids, limit=120).items()
+    }
+
+
 @router.get("/{monitor_id}", response_model=MonitorOut)
 def get_monitor(monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
     return _out(monitor, stats.uptime_windows(db, monitor)["24h"])

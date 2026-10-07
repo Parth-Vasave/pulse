@@ -124,3 +124,6 @@ export interface PublicStatus {
   components: { name: string; status: string; uptime_30d: number | null }[];
   incidents: { monitor: string; status: string; started_at: string; resolved_at: string | null }[];
 }
+
+/** One recent check as the dashboard plot draws it. */
+export interface TracePoint { ok: boolean; ms: number | null; at: string }

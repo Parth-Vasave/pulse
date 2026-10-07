@@ -1,65 +1,81 @@
 @import "tailwindcss";
 
+/*
+ * Bone white by day, matte black by night. Ink is the body colour and secondary text is a quiet
+ * slate blue; red is the one decoded colour and always means "down".
+ */
 :root {
-  --canvas: #f2f5f8;
+  --canvas: #fafaf9;
   --surface: #ffffff;
-  --ink: #14212e;
-  --muted: #566677;
-  --line: #dce3ea;
-  --accent: #1f5fbf;
-  --accent-ink: #ffffff;
-  --up: #0b7656;
-  --up-bg: #e1f3ea;
-  --down: #c42b2b;
-  --down-bg: #fbe8e8;
-  --paused: #5f6b78;
-  --paused-bg: #e8ecf0;
-  --warn: #8a5a00;
-  --warn-bg: #fdf1d8;
-  --chart: #1f5fbf;
+  --raised: #f1f1ef;
+  --ink: #0a0a0a;
+  --ink-2: #3b3b39;
+  --muted: #404d76;
+  --faint: #b9c0d3;
+  --line: #e8e8e5;
+  --line-strong: #d6d6d2;
+  --accent: #0a0a0a;
+  --accent-ink: #fafaf9;
+  --up: #16a34a;
+  --up-bg: #e9f7ee;
+  --down: #d92d20;
+  --down-bg: #fdeceb;
+  --paused: #8a8a86;
+  --paused-bg: #f1f1ef;
+  --warn: #a15c07;
+  --warn-bg: #fdf3e1;
+  --chart: #0a0a0a;
   --err-timeout: #2a78d6;
   --err-dns_failure: #eb6834;
   --err-connect_failure: #1baf7a;
   --err-http_error: #eda100;
   --err-assertion_failed: #e87ba4;
   --err-slow_response: #008300;
-  --err-other: #8a96a3;
+  --err-other: #8a8a86;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #0d141b;
-    --surface: #141d26;
-    --ink: #e6edf3;
-    --muted: #94a5b5;
-    --line: #25333f;
-    --accent: #6aa6ff;
-    --accent-ink: #0d141b;
-    --up: #3fcb9a;
-    --up-bg: #12302a;
-    --down: #ff7b72;
-    --down-bg: #3a1c1f;
-    --paused: #9aa7b4;
-    --paused-bg: #212c37;
-    --warn: #f0b95a;
-    --warn-bg: #352a12;
-    --chart: #6aa6ff;
+    --canvas: #0a0a0a;
+    --surface: #111111;
+    --raised: #1a1a1a;
+    --ink: #ededed;
+    --ink-2: #c4c4c4;
+    --muted: #8392c0;
+    --faint: #3b4258;
+    --line: #1f1f1f;
+    --line-strong: #2e2e2e;
+    --accent: #ededed;
+    --accent-ink: #0a0a0a;
+    --up: #3ecf8e;
+    --up-bg: #0f2a1d;
+    --down: #ff5c5c;
+    --down-bg: #2b1111;
+    --paused: #a3a3a3;
+    --paused-bg: #1a1a1a;
+    --warn: #f5a524;
+    --warn-bg: #2a1f0a;
+    --chart: #ededed;
     --err-timeout: #3987e5;
     --err-dns_failure: #d95926;
     --err-connect_failure: #199e70;
     --err-http_error: #c98500;
     --err-assertion_failed: #d55181;
     --err-slow_response: #008300;
-    --err-other: #6f7c89;
+    --err-other: #6f6f6f;
   }
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-raised: var(--raised);
   --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-up: var(--up);
@@ -70,24 +86,105 @@
   --color-paused-bg: var(--paused-bg);
   --color-warn: var(--warn);
   --color-warn-bg: var(--warn-bg);
-  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html { color-scheme: light dark; }
+html { color-scheme: light dark; scrollbar-color: var(--line-strong) transparent; }
 body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  caret-color: var(--ink);
+}
+::selection { background: color-mix(in srgb, var(--ink) 16%, transparent); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+select { background-image: none; }
+
+dialog::backdrop { background: rgb(0 0 0 / 0.5); backdrop-filter: blur(2px); }
+
+/* The engraved labels: table heads, axes and the few labels that name a section. Sentence case, used sparingly. */
+.caps {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted);
 }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+/* Hairline readout grid: the 1px gap shows the line colour; only the first cell of each row sits flush left. */
+.readout > * + * { padding-left: 1rem; }
+@media (max-width: 767px) {
+  .readout > :nth-child(odd) { padding-left: 0; }
+  /* An odd last cell spans the row, so no empty hairline block is left beside it. */
+  .readout > :last-child:nth-child(odd) { grid-column: span 2; }
+}
 
-dialog::backdrop { background: rgb(8 14 20 / 0.55); }
+/* Plot lanes wipe in once, left to right, when their data first arrives. */
+@keyframes trace-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+.trace-reveal { animation: trace-reveal 1.1s var(--ease-out-expo) backwards; }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--down) 50%, transparent); }
+  100% { box-shadow: 0 0 0 6px transparent; }
+}
+.pulse-down { animation: pulse-ring 2s ease-out infinite; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.toast-in { animation: rise 220ms var(--ease-out-expo); }
+
+/* Homepage replay: the lane scrolls one check at a time, new ticks grow from the baseline. */
+.replay-step { transition: transform 420ms var(--ease-out-expo); }
+@keyframes tick-in { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+.replay-tick { transform-box: fill-box; transform-origin: bottom; animation: tick-in 360ms var(--ease-out-expo) backwards; }
+.replay-timeline li, .replay-alert { animation: rise 280ms var(--ease-out-expo) backwards; }
+
+/*
+ * Homepage backdrop: two soft green glows wander across the viewport behind the content.
+ * Each glow is centred on the top-left corner, so translate(Xvw, Yvh) puts its centre at (X, Y).
+ */
+.home-glow { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.home-glow::before, .home-glow::after {
+  content: "";
+  position: absolute;
+  top: -50vmax;
+  left: -50vmax;
+  width: 100vmax;
+  height: 100vmax;
+  border-radius: 50%;
+  filter: blur(40px);
+  will-change: transform;
+}
+.home-glow::before {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--up) 16%, transparent), transparent);
+  transform: translate(15vw, 10vh);
+  animation: glow-wander-a 60s ease-in-out infinite;
+}
+.home-glow::after {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--up) 12%, transparent), transparent);
+  transform: translate(85vw, 85vh) scale(0.9);
+  animation: glow-wander-b 75s ease-in-out infinite;
+}
+@keyframes glow-wander-a {
+  0%, 100% { transform: translate(15vw, 10vh) scale(1); }
+  25% { transform: translate(85vw, 25vh) scale(1.1); }
+  50% { transform: translate(70vw, 85vh) scale(0.95); }
+  75% { transform: translate(20vw, 70vh) scale(1.05); }
+}
+@keyframes glow-wander-b {
+  0%, 100% { transform: translate(85vw, 85vh) scale(0.9); }
+  25% { transform: translate(30vw, 80vh) scale(1); }
+  50% { transform: translate(15vw, 20vh) scale(1.1); }
+  75% { transform: translate(75vw, 10vh) scale(0.95); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  .home-glow::before, .home-glow::after { animation: none !important; }
 }
-@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--down) 45%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
-.pulse-down { animation: pulse-ring 1.8s ease-out infinite; }

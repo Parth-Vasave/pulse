@@ -1,26 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { Card, EmptyState, ErrorState, PageHeader, Spinner } from "@/components/ui";
+import { FailMark, PassMark } from "@/components/icons";
+import { EmptyState, ErrorState, PageHeader, Section, SkeletonRows } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { formatDuration, formatTime } from "@/lib/format";
 import type { Incident } from "@/lib/types";
 
 function IncidentTable({ items }: { items: Incident[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[40rem] text-left text-sm">
-        <thead className="border-b border-line text-xs text-muted">
-          <tr><th scope="col" className="px-4 py-3 font-medium">Monitor</th><th scope="col" className="px-4 py-3 font-medium">Status</th><th scope="col" className="px-4 py-3 font-medium">Started</th><th scope="col" className="px-4 py-3 font-medium">Duration</th><th scope="col" className="px-4 py-3 font-medium">Root cause</th></tr>
+    <div className="relative -mx-4 overflow-x-auto px-4">
+      <table className="w-full min-w-[40rem] text-left text-[15px]">
+        <thead>
+          <tr className="border-b border-line">
+            <th scope="col" className="caps py-2 pr-4 font-normal">Monitor</th>
+            <th scope="col" className="caps py-2 pr-4 font-normal">Status</th>
+            <th scope="col" className="caps py-2 pr-4 font-normal">Started</th>
+            <th scope="col" className="caps py-2 pr-4 text-right font-normal">Duration</th>
+            <th scope="col" className="caps py-2 font-normal">Root cause</th>
+          </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody>
           {items.map((i) => (
-            <tr key={i.id} className="hover:bg-canvas/60">
-              <td className="px-4 py-3"><Link href={`/incidents/${i.id}`} className="font-medium hover:text-accent">{i.monitor_name}</Link></td>
-              <td className="px-4 py-3"><span className={i.status === "open" ? "font-semibold text-down" : "text-up"}>{i.status === "open" ? "✕ Ongoing" : "✓ Resolved"}</span></td>
-              <td className="px-4 py-3 text-muted">{formatTime(i.started_at, true)}</td>
-              <td className="px-4 py-3">{formatDuration(i.duration_seconds)}{i.status === "open" && " and counting"}</td>
-              <td className="max-w-[22rem] truncate px-4 py-3 text-muted" title={i.reason}>{i.reason}</td>
+            <tr key={i.id} className="border-b border-line transition-colors hover:bg-raised/60">
+              <td className="py-3 pr-4"><Link href={`/incidents/${i.id}`} className="font-medium text-ink hover:underline">{i.monitor_name}</Link></td>
+              <td className="py-3 pr-4">
+                <span className={`inline-flex items-center gap-1.5 ${i.status === "open" ? "font-medium text-down" : "text-ink-2"}`}>
+                  {i.status === "open" ? <FailMark /> : <PassMark className="text-muted" />}{i.status === "open" ? "Ongoing" : "Resolved"}
+                </span>
+              </td>
+              <td className="whitespace-nowrap py-3 pr-4 font-mono text-sm text-muted">{formatTime(i.started_at, true)}</td>
+              <td className="whitespace-nowrap py-3 pr-4 text-right font-mono text-sm">{formatDuration(i.duration_seconds)}{i.status === "open" && <span className="text-down"> and counting</span>}</td>
+              <td className="max-w-[24rem] truncate py-3 text-muted" title={i.reason}>{i.reason}</td>
             </tr>
           ))}
         </tbody>
@@ -35,16 +46,14 @@ export default function Incidents() {
   return (
     <>
       <PageHeader title="Incidents" sub="An incident opens after repeated failed checks and resolves automatically when the API recovers." />
-      <h2 className="mb-3 text-lg font-semibold">Active</h2>
-      <Card className="overflow-hidden">
-        {open.loading && !open.data ? <Spinner /> : open.error && !open.data ? <div className="p-4"><ErrorState message="Could not load incidents." onRetry={open.reload} /></div> :
+      <Section title="Active" description={open.data?.length ? `${open.data.length} ongoing` : undefined}>
+        {open.loading && !open.data ? <SkeletonRows rows={2} /> : open.error && !open.data ? <ErrorState message="Could not load incidents." onRetry={open.reload} /> :
           open.data?.length ? <IncidentTable items={open.data} /> : <EmptyState title="No active incidents" body="Everything you monitor is responding as expected." />}
-      </Card>
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Resolved</h2>
-      <Card className="overflow-hidden">
-        {resolved.loading && !resolved.data ? <Spinner /> :
+      </Section>
+      <Section className="mt-12" title="Resolved" description="The last 50, newest first.">
+        {resolved.loading && !resolved.data ? <SkeletonRows rows={4} /> :
           resolved.data?.length ? <IncidentTable items={resolved.data} /> : <EmptyState title="No resolved incidents yet" body="Past outages appear here with their duration and cause." />}
-      </Card>
+      </Section>
     </>
   );
 }

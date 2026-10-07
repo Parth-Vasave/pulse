@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { MonitorForm } from "@/components/MonitorForm";
-import { ErrorState, PageHeader, Spinner } from "@/components/ui";
+import { BackLink, ErrorState, PageHeader, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/lib/api";
 import { fromMonitor } from "@/lib/monitorForm";
@@ -15,7 +15,8 @@ export default function EditMonitor() {
   if (loading && !data) return <Spinner />;
   if (error || !data) return <ErrorState message="This monitor could not be found." onRetry={reload} />;
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-4xl">
+      <BackLink href={`/monitors/${id}`}>{data.name}</BackLink>
       <PageHeader title={`Edit ${data.name}`} />
       <MonitorForm editing initial={fromMonitor(data)} submitLabel="Save changes" onCancel={() => router.push(`/monitors/${id}`)}
         onSubmit={async (payload) => { await api(`/monitors/${id}`, { method: "PATCH", json: payload }); router.push(`/monitors/${id}`); }} />

@@ -20,3 +20,16 @@ export const ArrowLeftIcon = (p: P) => <svg {...base(p)}><path d="M13 8H3M7 4L3 
 export const XIcon = (p: P) => <svg {...base(p)}><path d="M4 4l8 8M12 4l-8 8" /></svg>;
 export const ChevronDownIcon = (p: P) => <svg {...base(p)}><path d="M4 6l4 4 4-4" /></svg>;
 export const AlertIcon = (p: P) => <svg {...base(p)}><path d="M8 5v3.5M8 11h.01M7 2.5L1.8 12a1 1 0 00.9 1.5h10.6a1 1 0 00.9-1.5L9 2.5a1 1 0 00-2 0z" /></svg>;
+
+/** Check outcome marks, drawn so Passed/Failed never rely on colour or a text glyph. */
+export const PassMark = (p: P) => <svg {...base({ width: 12, height: 12, strokeWidth: 1.8, ...p })}><path d="M3 8.5l3.2 3L13 4.5" /></svg>;
+export const FailMark = (p: P) => <svg {...base({ width: 12, height: 12, strokeWidth: 1.8, ...p })}><path d="M4 4l8 8M12 4l-8 8" /></svg>;
+
+/** The GitHub mark, filled, for links to the repository. */
+export const GitHubIcon = (p: P) => (
+  <svg {...base({ fill: "currentColor", stroke: "none", ...p })}>
+    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+  </svg>
+);
+
+export const ArrowRightIcon = (p: P) => <svg {...base(p)}><path d="M3 8h10M9 4l4 4-4 4" /></svg>;
