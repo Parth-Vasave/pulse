@@ -44,7 +44,7 @@ test("account: change password and email, then delete the account", async ({ pag
   await page.locator("#email_password").fill(second);
   await page.getByRole("button", { name: "Update email" }).click();
   await expect(page.getByText("Email updated")).toBeVisible();
-  await expect(page.getByRole("banner").getByText(newEmail)).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: newEmail })).toBeVisible();
 
   await page.getByRole("button", { name: "Delete my account…" }).click();
   const confirm = page.getByRole("button", { name: "Delete account", exact: true });
