@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalIcon, PlusIcon, SendIcon, TrashIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { Badge, Button, Card, ConfirmDialog, CopyButton, ErrorState, Field, FormError, IconButton, LinkButton, SkeletonRows, Toggle, inputClass } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, CopyButton, ErrorState, Field, FormError, IconButton, LinkButton, SkeletonRows, Toggle, inputClass } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, describeError } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -21,14 +21,14 @@ export function StatusPage() {
     catch (x) { setError(describeError(x)); }
     setBusy(false);
   }
-  if (!data) return <Card className="p-6"><SkeletonRows rows={2} /></Card>;
+  if (!data) return <section className="py-8 first:pt-0"><SkeletonRows rows={2} /></section>;
   return (
-    <Card className="p-6">
-      <h2 className="text-lg font-semibold">Public status page</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">Share the health of selected monitors without exposing their configuration. Choose monitors in each monitor’s settings.</p>
+    <section className="py-8 first:pt-0">
+      <h2 className="text-[17px] font-medium tracking-tight">Public status page</h2>
+      <p className="mb-5 mt-1 max-w-prose text-[15px] text-muted">Share the health of selected monitors without exposing their configuration. Choose monitors in each monitor’s settings.</p>
       <form key={`${data.enabled}-${data.slug}`} onSubmit={save} className="flex flex-col gap-4">
         <FormError message={error} />
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gapx-4 py-3 text-[15px]">
           <Toggle checked={enabled ?? data.enabled} onChange={setEnabled} label="Make the status page public" />
           <span>Make the status page public</span>
         </div>
@@ -40,6 +40,6 @@ export function StatusPage() {
           {data.enabled && data.slug && <LinkButton href={`/status/${data.slug}`} target="_blank" rel="noreferrer" icon={<ExternalIcon />}>Open status page</LinkButton>}
         </div>
       </form>
-    </Card>
+    </section>
   );
 }

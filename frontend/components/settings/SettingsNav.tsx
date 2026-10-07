@@ -15,15 +15,15 @@ export function SettingsNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Settings sections" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:overflow-visible md:px-0">
-      <ul className="flex gap-1 md:flex-col">
+      <ul className="flex border-b border-line md:flex-col md:border-b-0 md:border-l">
         {ITEMS.map((i) => {
           const active = pathname === i.href;
           return (
             <li key={i.href} className="shrink-0">
               <Link href={i.href} aria-current={active ? "page" : undefined}
-                className={`block rounded-md px-3 py-2 text-sm transition-colors ${active ? "bg-surface font-semibold text-ink shadow-sm ring-1 ring-line" : "text-muted hover:bg-paused-bg hover:text-ink"}`}>
+                className={`-mb-px block border-b px-3 py-2 text-[15px] transition-colors duration-150 md:-ml-px md:mb-0 md:border-b-0 md:border-l md:py-1.5 ${active ? "border-ink font-medium text-ink" : "border-transparent text-muted hover:text-ink"}`}>
                 {i.label}
-                <span className="hidden text-xs font-normal text-muted md:block">{i.hint}</span>
+                <span className="hidden text-sm font-normal text-muted md:block">{i.hint}</span>
               </Link>
             </li>
           );

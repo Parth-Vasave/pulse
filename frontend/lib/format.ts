@@ -67,3 +67,31 @@ export function errorBreakdown(errors: Record<string, number>, checks: number): 
   }
   return out;
 }
+
+/** Each monitor's catalog number, from its id: PLS-004. */
+export function catalogNo(id: number): string {
+  return `PLS-${String(id).padStart(3, "0")}`;
+}
+
+/** Severity first, so whatever is down is always the top line. */
+const SEVERITY: Record<string, number> = { down: 0, unknown: 1, up: 2, paused: 3 };
+export function bySeverity<T extends { display_status: string; name: string }>(a: T, b: T): number {
+  return (SEVERITY[a.display_status] ?? 9) - (SEVERITY[b.display_status] ?? 9) || a.name.localeCompare(b.name);
+}
+
+type Sortable = { display_status: string; name: string; uptime_24h: number | null; last_response_time_ms: number | null; last_checked_at: string | null };
+/** Missing values always sink to the bottom, whichever way the column runs; ties fall back to name. */
+const nullsLast = <T,>(get: (m: T) => number | null, dir: 1 | -1) => (a: T, b: T) => {
+  const x = get(a), y = get(b);
+  return x == null ? (y == null ? 0 : 1) : y == null ? -1 : (x - y) * dir;
+};
+const withName = <T extends Sortable>(cmp: (a: T, b: T) => number) => (a: T, b: T) => cmp(a, b) || a.name.localeCompare(b.name);
+
+export const MONITOR_SORTS = {
+  status: { label: "Status", compare: bySeverity },
+  name: { label: "Name", compare: (a: Sortable, b: Sortable) => a.name.localeCompare(b.name) },
+  uptime: { label: "Uptime, lowest", compare: withName(nullsLast((m: Sortable) => m.uptime_24h, 1)) },
+  response: { label: "Response, slowest", compare: withName(nullsLast((m: Sortable) => m.last_response_time_ms, -1)) },
+  checked: { label: "Last check", compare: withName(nullsLast((m: Sortable) => m.last_checked_at ? Date.parse(m.last_checked_at) : null, -1)) },
+} as const;
+export type MonitorSort = keyof typeof MONITOR_SORTS;

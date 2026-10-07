@@ -24,14 +24,14 @@ test("register → monitor → failure → incident → recovery → resolved", 
   await page.getByRole("button", { name: "Create monitor" }).click();
   await expect(page.getByRole("heading", { name: "Demo switch" })).toBeVisible();
   await expect(page.getByText("UP", { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText("✓ Passed").first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText("Passed", { exact: true }).first()).toBeVisible({ timeout: 60_000 });
 
   await request.post(`${CONTROL}/switch/fail`);
   await expect(page.getByText("DOWN", { exact: true })).toBeVisible({ timeout: 150_000 });
 
   await page.getByRole("link", { name: "Incidents" }).click();
   await expect(page.getByRole("heading", { name: "Active" })).toBeVisible();
-  await expect(page.getByText("✕ Ongoing")).toBeVisible();
+  await expect(page.getByText("Ongoing", { exact: true })).toBeVisible();
 
   await request.post(`${CONTROL}/switch/restore`);
   await expect(page.getByText("No active incidents")).toBeVisible({ timeout: 150_000 });

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useUser } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
-import { Button, Card, ConfirmDialog, Field, FormError, inputClass } from "@/components/ui";
+import { Button, ConfirmDialog, Field, FormError, inputClass } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, ApiError, describeError } from "@/lib/api";
 import type { Monitor } from "@/lib/types";
@@ -16,6 +16,7 @@ function passwordMessage(e: unknown): string {
 }
 
 function Profile() {
+  const router = useRouter();
   const { user, refresh } = useUser();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +36,23 @@ function Profile() {
     setBusy(false);
   }
 
+  async function logout() {
+    await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+    router.replace("/login");
+  }
+
   return (
-    <Card className="p-6">
-      <h2 className="text-lg font-semibold">Profile</h2>
-      <dl className="mb-5 mt-3 grid gap-3 text-sm sm:grid-cols-2">
-        <div><dt className="text-muted">Email</dt><dd className="mt-0.5 break-all font-medium">{user.email}</dd></div>
-        <div><dt className="text-muted">Member since</dt><dd className="mt-0.5 font-medium">{new Date(user.created_at).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}</dd></div>
+    <section className="py-8 first:pt-0">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-[17px] font-medium tracking-tight">Profile</h2>
+        <Button size="sm" onClick={logout}>Log out</Button>
+      </div>
+      <dl className="mb-6 mt-4 grid gap-4 text-[15px] sm:grid-cols-2">
+        <div><dt className="caps">Email</dt><dd className="mt-1 break-all">{user.email}</dd></div>
+        <div><dt className="caps">Member since</dt><dd className="mt-1">{new Date(user.created_at).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })}</dd></div>
       </dl>
-      <form onSubmit={submit} className="flex flex-col gap-4 border-t border-line pt-5">
-        <h3 className="font-medium">Change email</h3>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <h3 className="text-[15px] font-medium">Change email</h3>
         <FormError message={error} />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="New email address" htmlFor="new_email"><input id="new_email" name="new_email" type="email" required autoComplete="email" className={inputClass} /></Field>
@@ -51,7 +60,7 @@ function Profile() {
         </div>
         <div><Button type="submit" variant="primary" loading={busy}>Update email</Button></div>
       </form>
-    </Card>
+    </section>
   );
 }
 
@@ -75,9 +84,9 @@ function Password() {
   }
 
   return (
-    <Card className="p-6">
-      <h2 className="text-lg font-semibold">Password</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">Changing it signs you out everywhere else. You stay signed in here. API keys keep working.</p>
+    <section className="py-8 first:pt-0">
+      <h2 className="text-[17px] font-medium tracking-tight">Password</h2>
+      <p className="mb-5 mt-1 max-w-prose text-[15px] text-muted">Changing it signs you out everywhere else. You stay signed in here. API keys keep working.</p>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <FormError message={error} />
         <Field label="Current password" htmlFor="current_password"><input id="current_password" name="current_password" type="password" required autoComplete="current-password" className={inputClass} /></Field>
@@ -87,7 +96,7 @@ function Password() {
         </div>
         <div><Button type="submit" variant="primary" loading={busy}>Change password</Button></div>
       </form>
-    </Card>
+    </section>
   );
 }
 
@@ -112,9 +121,9 @@ function DangerZone() {
   }
 
   return (
-    <Card className="border-down/40 p-6">
-      <h2 className="text-lg font-semibold text-down">Delete account</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">
+    <section className="py-8">
+      <h2 className="text-[17px] font-medium tracking-tight text-down">Delete account</h2>
+      <p className="mb-5 mt-1 max-w-prose text-[15px] text-muted">
         Permanently deletes your account{count ? ` and your ${count} ${count === 1 ? "monitor" : "monitors"}` : ""}, with all check history, incidents, notification channels and API keys. This can&apos;t be undone.
       </p>
       <Button variant="danger" onClick={() => setOpen(true)}>Delete my account…</Button>
@@ -127,7 +136,7 @@ function DangerZone() {
             onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && password && !busy) remove(); }} />
         </Field>
       </ConfirmDialog>
-    </Card>
+    </section>
   );
 }
 

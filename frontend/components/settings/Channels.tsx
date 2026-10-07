@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ExternalIcon, PlusIcon, SendIcon, TrashIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { Badge, Button, Card, ConfirmDialog, CopyButton, ErrorState, Field, FormError, IconButton, LinkButton, SkeletonRows, Toggle, inputClass } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, CopyButton, ErrorState, Field, FormError, IconButton, LinkButton, Select, SkeletonRows, Toggle, inputClass } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, describeError } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -49,17 +49,17 @@ export function Channels() {
   }
 
   return (
-    <Card className="p-6">
-      <h2 className="text-lg font-semibold">Notification channels</h2>
-      <p className="mb-4 mt-1 text-sm text-muted">Where Pulse sends a message when an incident opens or resolves.</p>
+    <section className="py-8 first:pt-0">
+      <h2 className="text-[17px] font-medium tracking-tight">Notification channels</h2>
+      <p className="mb-5 mt-1 max-w-prose text-[15px] text-muted">Where Pulse sends a message when an incident opens or resolves.</p>
       {loading && !data ? <SkeletonRows rows={2} /> : error && !data ? <ErrorState message="Could not load channels." onRetry={reload} /> : (
-        <ul className="mb-6 divide-y divide-line rounded-md border border-line">
-          {data?.length === 0 && <li className="p-4 text-sm text-muted">No channels yet. Add one below to get alerted.</li>}
+        <ul className="mb-6 divide-y divide-line border-y border-line">
+          {data?.length === 0 && <li className="py-4 text-[15px] text-muted">No channels yet. Add one below to get alerted.</li>}
           {data?.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-[15px]">
               <div className="min-w-0">
                 <div className="flex items-center gap-2"><span className="font-medium">{c.name}</span><Badge>{TYPE_LABEL[c.type]}</Badge>{!c.enabled && <Badge tone="warn">Disabled</Badge>}</div>
-                <div className="truncate text-xs text-muted">{c.target}</div>
+                <div className="truncate text-sm text-muted">{c.target}</div>
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" icon={<SendIcon />} loading={testing === c.id} onClick={() => test(c)}>Send test</Button>
@@ -73,13 +73,13 @@ export function Channels() {
       <form onSubmit={add} className="flex flex-col gap-3">
         <FormError message={formError} />
         <div className="grid gap-3 sm:grid-cols-[9rem_1fr_1.4fr_auto] sm:items-end">
-          <Field label="Type" htmlFor="ch-type"><select id="ch-type" className={inputClass} value={type} onChange={(e) => setType(e.target.value as Channel["type"])}><option value="email">Email</option><option value="webhook">Webhook</option><option value="discord">Discord</option></select></Field>
+          <Field label="Type" htmlFor="ch-type"><Select id="ch-type" className={inputClass} value={type} onChange={(e) => setType(e.target.value as Channel["type"])}><option value="email">Email</option><option value="webhook">Webhook</option><option value="discord">Discord</option></Select></Field>
           <Field label="Name" htmlFor="ch-name"><input id="ch-name" name="name" required className={inputClass} placeholder="On-call" /></Field>
           <Field label={type === "email" ? "Email address" : "Webhook URL"} htmlFor="ch-target"><input id="ch-target" name="target" required type={type === "email" ? "email" : "url"} className={inputClass} placeholder={type === "email" ? "oncall@example.com" : "https://…"} /></Field>
           <Button type="submit" variant="primary" loading={busy} icon={<PlusIcon />}>Add channel</Button>
         </div>
       </form>
       <ConfirmDialog open={!!removing} title={`Delete ${removing?.name ?? "channel"}?`} body="You will stop receiving alerts here. Past notification history is kept." confirmLabel="Delete channel" onConfirm={remove} onCancel={() => setRemoving(null)} />
-    </Card>
+    </section>
   );
 }
