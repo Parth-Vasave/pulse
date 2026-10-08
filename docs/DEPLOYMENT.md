@@ -26,19 +26,34 @@ Migrations run automatically in the `migrate` job before the API, worker and sch
 ## Required `.env` changes for production
 | Setting | Value |
 |---|---|
+| `DOMAIN` | the public hostname, e.g. `pulse.example.com`. Caddy serves it over HTTPS with an automatic certificate |
 | `ENVIRONMENT` | `production` (the app refuses the placeholder `SECRET_KEY` otherwise) |
 | `SECRET_KEY` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. **Required** (the app refuses to start without it). Set it *before* the first start of this version: the migration encrypts existing headers and webhook URLs with it. Back it up; see [SECURITY.md](SECURITY.md#encryption-at-rest) |
 | `HEARTBEAT_URL` | optional: ping URL from Healthchecks.io / Cronitor / Better Stack (see below) |
 | `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` | a strong, matching value |
 | `COOKIE_SECURE` | `true` (serve over HTTPS) |
-| `CORS_ORIGINS`, `FRONTEND_URL`, `NEXT_PUBLIC_API_URL` | your public URLs |
+| `CORS_ORIGINS`, `FRONTEND_URL`, `NEXT_PUBLIC_API_URL` | `https://<DOMAIN>` |
 | `SSRF_ALLOWED_HOSTS` | empty |
 | `SEED_DEMO_DATA` | `false` (the prod compose file never seeds) |
 | `SMTP_*` | a real SMTP relay |
 
-Put a TLS-terminating reverse proxy (Caddy, nginx, a cloud load balancer) in front of ports 3000 and 8000. Do not
-expose Postgres or Redis.
+### TLS and the reverse proxy
+The production compose file includes [Caddy](https://caddyserver.com/) as the only public entry point. Point an
+`A`/`AAAA` record for `DOMAIN` at the host and open ports 80 and 443; Caddy obtains and renews the certificate, redirects
+HTTP to HTTPS and sends HSTS. It proxies to the frontend, which forwards `/api` to the backend.
+
+The frontend (3000) and API (8000) ports are bound to `127.0.0.1`, and Postgres and Redis are not published at all.
+Keep it that way: Docker publishes ports past host firewalls such as `ufw`, so a port bound to `0.0.0.0` is public
+whatever the firewall says.
+
+This matters for rate limiting. The API identifies clients by `X-Forwarded-For`, and Caddy *overwrites* that header
+with the address it actually saw. A request that reached the frontend or API directly could set the header to anything
+and get a fresh login rate-limit bucket on every attempt.
+
+To use your own proxy or load balancer instead, remove the `caddy` service and have the proxy reach `127.0.0.1:3000`
+(on the host) with `X-Forwarded-For` set to the client address, e.g. nginx's
+`proxy_set_header X-Forwarded-For $remote_addr;`. Don't use `$proxy_add_x_forwarded_for`: it keeps the client's value.
 
 ## Monitoring Pulse itself
 A monitoring tool that silently stops is worse than none, so Pulse reports on itself in three layers:
