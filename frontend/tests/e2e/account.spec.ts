@@ -35,8 +35,9 @@ test("account: change password and email, then delete the account", async ({ pag
   await page.getByRole("button", { name: "Change password" }).click();
   await expect(page.getByText(/Other devices have been signed out/)).toBeVisible();
 
+  // Signed out, and sent to log in with the way back to the page it asked for.
   await otherPage.goto("/dashboard");
-  await expect(otherPage).toHaveURL(/\/login$/);
+  await expect(otherPage).toHaveURL(/\/login\?next=%2Fdashboard$/);
   await other.close();
 
   const newEmail = `moved-${Date.now()}@example.com`;

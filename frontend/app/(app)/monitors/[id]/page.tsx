@@ -7,9 +7,9 @@ import { Stat, StatRow } from "@/components/Stat";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FailMark, PassMark, PauseIcon, PencilIcon, PlayIcon, RefreshIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { BackLink, Button, EmptyState, ErrorState, LinkButton, Section, SegmentedControl, Spinner } from "@/components/ui";
+import { BackLink, Button, EmptyState, ErrorState, LinkButton, Section, SegmentedControl, Spinner, StaleNotice } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import { api, describeError } from "@/lib/api";
+import { api, describeError, loadErrorMessage } from "@/lib/api";
 import { ERROR_LABELS, catalogNo, formatDuration, formatMs, formatPercent, formatTime, timeAgo } from "@/lib/format";
 import type { CheckResult, Monitor, MonitorStats, TimeRange } from "@/lib/types";
 
@@ -39,7 +39,7 @@ export default function MonitorDetail() {
   }
 
   if (monitor.loading && !monitor.data) return <Spinner />;
-  if (monitor.error || !monitor.data) return <ErrorState message="This monitor could not be found." onRetry={monitor.reload} />;
+  if (!monitor.data) return <ErrorState message={loadErrorMessage(monitor.error, "This monitor could not be found.")} onRetry={monitor.reload} />;
   const m = monitor.data;
   const s = stats.data?.summary;
   const rows = allChecks ? checks.data : checks.data?.slice(0, FIRST_CHECKS);
@@ -47,6 +47,7 @@ export default function MonitorDetail() {
   return (
     <>
       <BackLink href="/dashboard">Dashboard</BackLink>
+      <StaleNotice error={monitor.error} updatedAt={monitor.updatedAt} onRetry={monitor.reload} />
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

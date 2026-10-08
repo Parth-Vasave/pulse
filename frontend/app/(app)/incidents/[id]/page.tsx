@@ -4,20 +4,22 @@ import { useParams } from "next/navigation";
 import { Stat, StatRow } from "@/components/Stat";
 import { Timeline } from "@/components/Timeline";
 import { FailMark, PassMark } from "@/components/icons";
-import { BackLink, ErrorState, LinkButton, Section, Spinner } from "@/components/ui";
+import { BackLink, ErrorState, LinkButton, Section, Spinner, StaleNotice } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
+import { loadErrorMessage } from "@/lib/api";
 import { formatDuration, formatTime } from "@/lib/format";
 import type { IncidentDetail } from "@/lib/types";
 
 export default function IncidentPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, error, loading, reload } = useApi<IncidentDetail>(`/incidents/${id}`, 10000);
+  const { data, error, loading, reload, updatedAt } = useApi<IncidentDetail>(`/incidents/${id}`, 10000);
   if (loading && !data) return <Spinner />;
-  if (error || !data) return <ErrorState message="This incident could not be found." onRetry={reload} />;
+  if (!data) return <ErrorState message={loadErrorMessage(error, "This incident could not be found.")} onRetry={reload} />;
   const open = data.status === "open";
   return (
     <>
       <BackLink href="/incidents">Incidents</BackLink>
+      <StaleNotice error={error} updatedAt={updatedAt} onRetry={reload} />
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">{data.monitor_name}: {open ? "ongoing incident" : "resolved incident"}</h1>

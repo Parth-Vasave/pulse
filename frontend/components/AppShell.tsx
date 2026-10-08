@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Wordmark } from "@/components/Logo";
 import { Spinner } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, redirectToLogin } from "@/lib/api";
 
 export interface CurrentUser { id: number; email: string; created_at: string }
 interface UserCtx { user: CurrentUser; refresh: () => Promise<void> }
@@ -70,7 +70,6 @@ function MainNav({ current }: { current: string | null }) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<CurrentUser | null>(null);
 
@@ -79,8 +78,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    api<CurrentUser>("/auth/me").then(setUser).catch(() => router.replace("/login"));
-  }, [router]);
+    api<CurrentUser>("/auth/me").then(setUser).catch(() => redirectToLogin());
+  }, []);
 
   if (!user) return <div className="mx-auto max-w-6xl px-4"><Spinner label="Checking your session" /></div>;
 

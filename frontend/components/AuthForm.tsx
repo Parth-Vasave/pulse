@@ -2,17 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { api, describeError } from "@/lib/api";
+import { useState, useSyncExternalStore } from "react";
+import { api, describeError, safeNext } from "@/lib/api";
 import { Wordmark } from "@/components/Logo";
 import { Sleeve } from "@/components/Sleeve";
 import { Button, Field, FormError, inputClass } from "@/components/ui";
+
+const noSubscription = () => () => {};
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const isLogin = mode === "login";
+  // The page is prerendered, so the query string is only known in the browser (false on the server).
+  const expired = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).has("expired"), () => false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -21,7 +25,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     setError(null);
     try {
       await api(`/auth/${mode}`, { method: "POST", json: { email: form.get("email"), password: form.get("password") } });
-      router.replace("/dashboard");
+      router.replace(safeNext(window.location.search));
     } catch (err) {
       setError(describeError(err));
       setBusy(false);
@@ -42,6 +46,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </p>
         <form onSubmit={submit} className="mt-8 flex flex-col gap-4">
           <FormError message={error} />
+          {isLogin && expired && !error && (
+            <p role="status" className="rounded-md border border-line px-3 py-2 text-[15px] text-muted">Your session ended. Log in to pick up where you left off.</p>
+          )}
           <Field label="Email" htmlFor="email">
             <input id="email" name="email" type="email" required autoComplete="email" className={inputClass} />
           </Field>
