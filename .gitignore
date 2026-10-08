@@ -20,3 +20,4 @@ test-results/
 *.tsbuildinfo
 .DS_Store
 celerybeat-schedule*
+backups/
