@@ -1,5 +1,7 @@
 # Production-style stack that runs the published images (see docs/DEPLOYMENT.md).
 #   PULSE_VERSION=1.0.0 PULSE_REGISTRY=ghcr.io/parth-vasave docker compose -f docker-compose.prod.yml up -d
+# Caddy is the only public entry point: it terminates TLS for $DOMAIN and proxies to the frontend, which
+# forwards /api to the backend. The app ports are bound to 127.0.0.1 so nothing can bypass Caddy.
 name: pulse
 
 x-backend: &backend
@@ -44,10 +46,12 @@ services:
   backend:
     <<: *backend
     environment:
+      # Required: the API's peer is always the frontend container, so without this every visitor would share one
+      # rate-limit bucket. Safe only because every request arrives through Caddy, which overwrites X-Forwarded-For.
       TRUST_PROXY_HEADERS: "true"
     depends_on:
       migrate: { condition: service_completed_successfully }
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]  # host-only: for a local Prometheus scrape or debugging, never public
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -72,10 +76,31 @@ services:
     image: ${PULSE_REGISTRY:-ghcr.io/parth-vasave}/pulse-frontend:${PULSE_VERSION:-latest}
     environment:
       INTERNAL_API_URL: http://backend:8000
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]  # host-only: public traffic goes through Caddy
     depends_on: [backend]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    # Automatic HTTPS for $DOMAIN (Let's Encrypt). X-Forwarded-For is SET, not appended, to the address Caddy
+    # actually saw, so a client-supplied header can never reach the API's rate limiter.
+    command:
+      - caddy
+      - reverse-proxy
+      - --from
+      - ${DOMAIN:?set DOMAIN in .env}
+      - --to
+      - frontend:3000
+      - --header-up
+      - "X-Forwarded-For: {http.request.remote.host}"
+      - --header-down
+      - "Strict-Transport-Security: max-age=31536000"
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes: [caddydata:/data]
+    depends_on: [frontend]
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
+  caddydata:  # TLS certificates and keys; keep it so restarts don't re-issue

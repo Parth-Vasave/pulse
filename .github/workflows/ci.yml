@@ -41,6 +41,8 @@ jobs:
           docker run --rm --entrypoint promtool
           -v "$PWD/infrastructure/monitoring:/etc/prometheus:ro"
           prom/prometheus:v3.15.0 check config /etc/prometheus/prometheus.yml
+      - name: Validate the production compose file
+        run: cp .env.example .env && DOMAIN=pulse.example.com docker compose -f docker-compose.prod.yml config -q
 
   backend:
     runs-on: ubuntu-latest
