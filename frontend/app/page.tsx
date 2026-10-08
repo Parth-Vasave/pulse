@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { HomeHeader } from "@/components/home/HomeHeader";
 import { IncidentReplay } from "@/components/home/IncidentReplay";
 import { INSTALL, REPO, doc } from "@/components/home/links";
@@ -293,11 +294,18 @@ export default function Home() {
               Vitest covers the interface, and Playwright drives the whole lifecycle through the browser. CI also applies and rolls back every migration and scans the images.
             </p>
           </SectionHead>
-          <dl className="readout grid grid-cols-2 gap-px border-y border-line bg-line md:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-px border border-line bg-line md:grid-cols-4">
             {STACK.map((s) => (
-              <div key={s.layer} className="bg-canvas py-4 pr-4">
+              <div key={s.layer} className="bg-canvas px-5 py-4">
                 <dt className="caps">{s.layer}</dt>
-                <dd className="mt-1.5 font-mono text-sm leading-6 text-ink">{s.value}</dd>
+                {/* Each item keeps its trailing separator, so a wrap never starts a line with "·". */}
+                <dd className="mt-1.5 font-mono text-sm leading-6 text-ink">
+                  {s.value.split(" · ").map((item, i, all) => (
+                    <Fragment key={item}>
+                      <span className="whitespace-nowrap">{item}{i < all.length - 1 && " ·"}</span>{i < all.length - 1 && " "}
+                    </Fragment>
+                  ))}
+                </dd>
               </div>
             ))}
           </dl>
