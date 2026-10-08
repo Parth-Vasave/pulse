@@ -51,7 +51,7 @@ export default function Incidents() {
           open.data?.length ? <IncidentTable items={open.data} /> : <EmptyState title="No active incidents" body="Everything you monitor is responding as expected." />}
       </Section>
       <Section className="mt-12" title="Resolved" description="The last 50, newest first.">
-        {resolved.loading && !resolved.data ? <SkeletonRows rows={4} /> :
+        {resolved.loading && !resolved.data ? <SkeletonRows rows={4} /> : resolved.error && !resolved.data ? <ErrorState message="Could not load incidents." onRetry={resolved.reload} /> :
           resolved.data?.length ? <IncidentTable items={resolved.data} /> : <EmptyState title="No resolved incidents yet" body="Past outages appear here with their duration and cause." />}
       </Section>
     </>

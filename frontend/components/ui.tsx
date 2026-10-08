@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { VARIANTS, buttonClass, type Size, type Variant } from "@/components/buttonStyles";
 import { CheckIcon, ChevronDownIcon, CopyIcon } from "@/components/icons";
+import { timeAgo } from "@/lib/format";
 
 /* ---------- Buttons ---------- */
 
@@ -181,6 +182,18 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   return (
     <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-down/30 bg-down-bg px-4 py-3 text-[15px] text-down">
       <p>{message}</p>
+      {onRetry && <Button size="sm" onClick={onRetry}>Try again</Button>}
+    </div>
+  );
+}
+
+/** A refresh failed but earlier data is still on screen: say so instead of replacing the page. */
+export function StaleNotice({ error, updatedAt, onRetry }: { error: unknown; updatedAt: number | undefined; onRetry?: () => void }) {
+  if (!error) return null;
+  const when = updatedAt ? timeAgo(new Date(updatedAt).toISOString()).toLowerCase() : "earlier";
+  return (
+    <div role="status" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warn/30 bg-warn-bg px-4 py-2.5 text-sm text-warn">
+      <p>Couldn&rsquo;t refresh. Showing data from {when}.</p>
       {onRetry && <Button size="sm" onClick={onRetry}>Try again</Button>}
     </div>
   );

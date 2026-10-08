@@ -8,7 +8,7 @@ import { PulsarPlot } from "@/components/PulsarPlot";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PauseIcon, PencilIcon, PlayIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { ConfirmDialog, EmptyState, ErrorState, IconButton, LinkButton, MenuSelect, SkeletonRows } from "@/components/ui";
+import { ConfirmDialog, EmptyState, ErrorState, IconButton, LinkButton, MenuSelect, SkeletonRows, StaleNotice } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, describeError } from "@/lib/api";
 import { MONITOR_SORTS, type MonitorSort, catalogNo, formatMs, formatPercent, timeAgo } from "@/lib/format";
@@ -49,6 +49,9 @@ export default function Dashboard() {
   return (
     <>
       <h1 className="sr-only">Dashboard</h1>
+      {/* Statuses that silently stop updating would read as "all fine"; say when they are stale. */}
+      <StaleNotice error={monitors.data && monitors.error} updatedAt={monitors.updatedAt}
+        onRetry={() => { monitors.reload(); summary.reload(); traces.reload(); }} />
       {summary.data ? <HealthBanner s={summary.data} action={addButton} note="Refreshes every 10 seconds." />
         : summary.error ? <ErrorState message="Could not load the summary." onRetry={summary.reload} />
         : <div className="flex justify-end" style={{ minHeight: 132 }}>{addButton}</div>}

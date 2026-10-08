@@ -4,7 +4,8 @@ import { useParams } from "next/navigation";
 import { Wordmark } from "@/components/Logo";
 import { FailMark, PassMark } from "@/components/icons";
 import { useApi } from "@/hooks/useApi";
-import { ErrorState, Spinner } from "@/components/ui";
+import { ErrorState, Spinner, StaleNotice } from "@/components/ui";
+import { loadErrorMessage } from "@/lib/api";
 import { formatDuration, formatPercent, formatTime } from "@/lib/format";
 import type { PublicStatus } from "@/lib/types";
 
@@ -22,15 +23,16 @@ const DOT = { operational: "bg-up", outage: "bg-down pulse-down", degraded: "bg-
 
 export default function PublicStatusPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { data, error, loading } = useApi<PublicStatus>(`/public/status/${slug}`, 30000);
+  const { data, error, loading, reload, updatedAt } = useApi<PublicStatus>(`/public/status/${slug}`, 30000);
   if (loading && !data) return <main className="mx-auto max-w-2xl px-4"><Spinner /></main>;
-  if (error || !data) return <main className="mx-auto max-w-2xl px-4 py-16"><ErrorState message="This status page doesn’t exist or isn’t public." /></main>;
+  if (!data) return <main className="mx-auto max-w-2xl px-4 py-16"><ErrorState message={loadErrorMessage(error, "This status page doesn’t exist or isn’t public.")} onRetry={reload} /></main>;
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
       <div className="mb-14 flex items-center justify-between">
         <Wordmark />
         <span className="caps">Service status</span>
       </div>
+      <StaleNotice error={error} updatedAt={updatedAt} onRetry={reload} />
 
       <h1 className="sr-only">Service status</h1>
       <p role="status" className={`flex items-center gap-3 text-[28px] font-semibold leading-tight tracking-[-0.03em] ${data.overall_status === "outage" ? "text-down" : "text-ink"}`}>

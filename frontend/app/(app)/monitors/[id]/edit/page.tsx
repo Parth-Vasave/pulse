@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { MonitorForm } from "@/components/MonitorForm";
 import { BackLink, ErrorState, PageHeader, Spinner } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import { api } from "@/lib/api";
+import { api, loadErrorMessage } from "@/lib/api";
 import { fromMonitor } from "@/lib/monitorForm";
 import type { Monitor } from "@/lib/types";
 
@@ -13,7 +13,7 @@ export default function EditMonitor() {
   const router = useRouter();
   const { data, error, loading, reload } = useApi<Monitor>(`/monitors/${id}`);
   if (loading && !data) return <Spinner />;
-  if (error || !data) return <ErrorState message="This monitor could not be found." onRetry={reload} />;
+  if (!data) return <ErrorState message={loadErrorMessage(error, "This monitor could not be found.")} onRetry={reload} />;
   return (
     <div className="max-w-4xl">
       <BackLink href={`/monitors/${id}`}>{data.name}</BackLink>

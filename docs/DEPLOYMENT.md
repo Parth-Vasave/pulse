@@ -55,6 +55,36 @@ To use your own proxy or load balancer instead, remove the `caddy` service and h
 (on the host) with `X-Forwarded-For` set to the client address, e.g. nginx's
 `proxy_set_header X-Forwarded-For $remote_addr;`. Don't use `$proxy_add_x_forwarded_for`: it keeps the client's value.
 
+## Backups
+The `backup` service in the production compose file runs `pg_dump` every `BACKUP_INTERVAL_SECONDS` (default 86400,
+daily) and writes `backups/pulse-<UTC timestamp>.dump` next to the compose file, keeping `BACKUP_KEEP_DAYS` (default 14)
+of them. A dump is written to a temporary name and renamed only when it completes, and old dumps are pruned only after a
+successful one, so a run of failures never deletes your last good backup. The service reports **unhealthy** in
+`docker compose ps` once the newest dump is older than two intervals; failures are logged as `backup_failed`.
+
+**Copy the dumps off the host.** A backup on the same disk as the database doesn't survive losing that disk. Sync
+`backups/` to object storage on a schedule, e.g. a cron entry running `rclone copy backups remote:pulse-backups` or
+`aws s3 sync backups s3://<bucket>/pulse`.
+
+**Keep `ENCRYPTION_KEY` separately.** Monitor headers and webhook URLs in the dump are encrypted with it. Without the key
+(or with a different one) a restore brings back everything except those secrets. Store it in your secret manager, not
+next to the dumps.
+
+### Restoring
+Stop everything that writes, restore over the current database, then start again:
+
+```bash
+docker compose -f docker-compose.prod.yml stop backend worker scheduler backup
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  pg_restore -U monitor -d monitor --clean --if-exists --no-owner < backups/pulse-<timestamp>.dump
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Use your `POSTGRES_USER` / `POSTGRES_DB` if you changed them. `--clean --if-exists` drops and recreates every table, so
+the database ends up exactly as it was at the time of the dump. If the dump came from an older release, start that
+release's images first; the `migrate` job brings the schema forward on the next `up`. Test a restore once before you
+need it.
+
 ## Monitoring Pulse itself
 A monitoring tool that silently stops is worse than none, so Pulse reports on itself in three layers:
 
