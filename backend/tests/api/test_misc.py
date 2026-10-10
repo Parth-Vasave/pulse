@@ -156,6 +156,28 @@ def test_public_status_page_hides_private_details(auth_client, client, db):
         assert anon.get("/api/public/status/acme").status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("monitors", "overall"),
+    [
+        ([], "unknown"),
+        ([("up", True)], "operational"),
+        ([("up", True), ("down", True)], "outage"),
+        ([("up", True), ("up", False)], "operational"),  # a paused service doesn't hide the healthy one
+        ([("up", False)], "unknown"),  # paused: nothing is being checked
+        ([("unknown", True)], "unknown"),  # not checked yet
+        ([("unknown", True), ("up", False)], "unknown"),
+    ],
+)
+def test_public_status_page_overall_status(auth_client, db, monitors, overall):
+    for i, (status, enabled) in enumerate(monitors):
+        m = auth_client.post("/api/monitors", json=VALID | {"name": f"svc{i}", "show_on_status_page": True}).json()
+        row = db.get(Monitor, m["id"])
+        row.status, row.enabled = status, enabled
+    db.commit()
+    auth_client.put("/api/status-page", json={"enabled": True, "slug": "acme"})
+    assert auth_client.get("/api/public/status/acme").json()["overall_status"] == overall
+
+
 def test_status_page_slug_validation(auth_client):
     for bad in ("A", "ab", "Has Space", "-lead", "x" * 70):
         assert auth_client.put("/api/status-page", json={"enabled": True, "slug": bad}).status_code == 422

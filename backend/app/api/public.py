@@ -52,9 +52,11 @@ def public_status(slug: str, db: Session = Depends(get_db)):
         else []
     )
     statuses = {c["status"] for c in components}
-    overall = "outage" if "outage" in statuses else "degraded" if "degraded" in statuses else "operational"
+    # Worst status wins. "operational" needs at least one service actually up: a page whose services are
+    # all paused or not checked yet (or that lists none) has nothing to vouch for.
+    overall = next((s for s in ("outage", "degraded", "operational") if s in statuses), "unknown")
     return {
-        "overall_status": overall if components else "unknown",
+        "overall_status": overall,
         "components": components,
         "incidents": [
             {"monitor": name, "status": i.status, "started_at": i.started_at, "resolved_at": i.resolved_at}
