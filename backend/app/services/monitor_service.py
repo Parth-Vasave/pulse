@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
 from sqlalchemy import func, select
@@ -80,8 +80,13 @@ def update_monitor(db: Session, monitor: Monitor, patch: MonitorUpdate) -> Monit
     for f in _FIELDS:
         setattr(monitor, f, getattr(data, f))
     monitor.assertions = [a.model_dump() for a in data.assertions]
-    if data.enabled and not was_enabled:
-        monitor.next_check_at = datetime.now(UTC)  # resumed: check right away
+    now = datetime.now(UTC)
+    if data.enabled and (not was_enabled or retargeted):
+        monitor.next_check_at = now  # resumed, or a new target with no health yet: check right away
+    elif data.enabled and monitor.next_check_at is not None:
+        # A shorter interval counts from the last check, not from the end of the old (longer) wait.
+        due = (monitor.last_checked_at or now) + timedelta(seconds=data.interval_seconds)
+        monitor.next_check_at = min(monitor.next_check_at, due)
     if retargeted or pausing:
         # The old UP/DOWN state, streaks and any open incident describe something that no longer
         # applies. Close the incident (no recovery alert) and start the state machine fresh.

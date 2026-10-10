@@ -1,5 +1,7 @@
 """What happens to health state and incidents when a monitor is edited, paused or resumed."""
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import func, select
 
@@ -106,6 +108,41 @@ def test_pausing_a_healthy_monitor_changes_nothing_else(auth_client, db):
     m = auth_client.post("/api/monitors", json=VALID).json()
     auth_client.patch(f"/api/monitors/{m['id']}", json={"enabled": False})
     assert db.scalar(select(func.count()).select_from(Incident)) == 0
+
+
+# ---- when the next check runs after an edit ----------------------------------------------------
+def scheduled(db, monitor_id, next_check_at, last_checked_at=None):
+    m = db.get(Monitor, monitor_id)
+    m.next_check_at, m.last_checked_at = next_check_at, last_checked_at
+    db.commit()
+
+
+def next_check(db, monitor_id):
+    db.expire_all()
+    return db.get(Monitor, monitor_id).next_check_at
+
+
+def test_shortening_the_interval_takes_effect_from_the_last_check(auth_client, db):
+    m = auth_client.post("/api/monitors", json=VALID | {"interval_seconds": 86400}).json()
+    now = datetime.now(UTC)
+    scheduled(db, m["id"], now + timedelta(hours=23), last_checked_at=now - timedelta(seconds=10))
+    auth_client.patch(f"/api/monitors/{m['id']}", json={"interval_seconds": 60})
+    assert next_check(db, m["id"]) == now + timedelta(seconds=50)  # not 23 hours away
+
+
+def test_lengthening_the_interval_keeps_the_next_check(auth_client, db):
+    m = auth_client.post("/api/monitors", json=VALID).json()
+    at = datetime.now(UTC) + timedelta(seconds=40)
+    scheduled(db, m["id"], at, last_checked_at=at - timedelta(seconds=60))
+    auth_client.patch(f"/api/monitors/{m['id']}", json={"interval_seconds": 3600})
+    assert next_check(db, m["id"]) == at
+
+
+def test_retargeting_checks_the_new_target_right_away(auth_client, db):
+    m = auth_client.post("/api/monitors", json=VALID | {"interval_seconds": 86400}).json()
+    scheduled(db, m["id"], datetime.now(UTC) + timedelta(hours=23))
+    auth_client.patch(f"/api/monitors/{m['id']}", json={"url": "https://other.example.com/health"})
+    assert next_check(db, m["id"]) <= datetime.now(UTC)
 
 
 # ---- results from checks that were already running ---------------------------------------------------
