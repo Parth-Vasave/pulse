@@ -64,10 +64,11 @@ An open incident and the UP/DOWN streaks describe *one monitor aimed at one targ
 
 | Change | What happens |
 |---|---|
-| **URL or method edited** | Health state resets to `unknown` (streaks 0, last check cleared). An open incident is **closed** with the timeline entry "Incident closed: the monitor's URL or method was changed". |
+| **URL or method edited** | Health state resets to `unknown` (streaks 0, last check cleared). An open incident is **closed** with the timeline entry "Incident closed: the monitor's URL or method was changed". The new target is checked right away. |
 | **Paused** | Same reset and close ("...monitoring was paused"); the last-check time is kept. |
 | **Resumed** | Starts fresh. If the API is still down, a *new* incident opens after the failure threshold. That is honest, because monitoring had stopped. |
-| Name, headers, timeout, thresholds, assertions, expected status | No reset. |
+| **Interval shortened** | No reset. The next check moves up to one new interval after the last check, instead of waiting out the old interval. |
+| Name, headers, timeout, thresholds, assertions, expected status, longer interval | No reset. |
 
 Closing is **not** recovery, so no "recovered" notification is sent and `incidents_resolved_total` is not incremented.
 
