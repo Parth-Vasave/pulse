@@ -58,6 +58,27 @@ def _lookup(data: Any, path: str) -> Any:
     return current
 
 
+def _equal(actual: Any, expected: Any) -> bool:
+    """JSON equality for an expected value that may have arrived as text.
+
+    The monitor form sends every value as a string, so "200" must match 200 and "true" must match true.
+    A string is parsed as JSON when the field is not a string itself. Booleans never equal numbers,
+    although Python has True == 1.
+    """
+    if isinstance(expected, str) and not isinstance(actual, str):
+        try:
+            expected = json.loads(expected)
+        except ValueError:
+            return False
+    if isinstance(actual, bool) or isinstance(expected, bool):
+        return actual is expected
+    return bool(actual == expected)
+
+
+def _as_text(value: Any) -> str:
+    return value if isinstance(value, str) else json.dumps(value)
+
+
 @register("body_contains")
 def _body_contains(params: dict[str, Any], resp: ResponseView) -> AssertionResult:
     needle = str(params["value"])
@@ -87,11 +108,14 @@ def _json_field(params: dict[str, Any], resp: ResponseView) -> AssertionResult:
         return AssertionResult(False, f"JSON field '{path}' is missing")
     expected = params.get("value")
     if op == "eq":
-        ok = actual == expected
+        ok = _equal(actual, expected)
     elif op == "ne":
-        ok = actual != expected
+        ok = not _equal(actual, expected)
     elif op == "contains":
-        ok = isinstance(actual, str | list) and expected in actual
+        if isinstance(actual, list):
+            ok = any(_equal(item, expected) for item in actual)
+        else:
+            ok = isinstance(actual, str) and _as_text(expected) in actual
     else:
         return AssertionResult(False, f"Unknown operator '{op}'")
     return AssertionResult(ok, "" if ok else f"JSON field '{path}' is {actual!r}, expected {op} {expected!r}")
