@@ -49,7 +49,7 @@ All three re-check the **current password** (wrong password → `403` with `code
 | `GET /api/monitors/{id}/checks?limit=50&failures_only=false` | recent results |
 | `GET /api/monitors/{id}/stats?range=1h\|24h\|7d\|30d` | summary, 24h/7d/30d uptime, time series |
 
-Assertion types: `body_contains`, `body_not_contains`, `json_field` (`operator`: `eq|ne|contains|exists`, dotted `path`, e.g. `checks.0.ok`).
+Assertion types: `body_contains`, `body_not_contains`, `json_field` (`operator`: `eq|ne|contains|exists`, dotted `path`, e.g. `checks.0.ok`). A `json_field` value given as a string is read as JSON when the field is not a string, so `"200"` matches `200` and `"true"` matches `true`; booleans never equal numbers.
 
 Stats example:
 ```json

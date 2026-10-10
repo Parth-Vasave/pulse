@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.assertions import ResponseView, evaluate_all, registered_types
 
 
@@ -22,6 +24,39 @@ def test_json_field_eq():
 def test_json_nested_and_list_paths():
     a = [{"type": "json_field", "path": "checks.0.ok", "operator": "eq", "value": True}]
     assert evaluate_all(a, resp('{"checks": [{"ok": true}]}')).passed
+
+
+@pytest.mark.parametrize(
+    ("value", "body"),
+    [("200", '{"code": 200}'), ("1.5", '{"code": 1.5}'), ("true", '{"code": true}'), ("null", '{"code": null}')],
+)
+def test_json_eq_matches_text_from_the_form_against_typed_fields(value, body):
+    eq = [{"type": "json_field", "path": "code", "operator": "eq", "value": value}]
+    ne = [{"type": "json_field", "path": "code", "operator": "ne", "value": value}]
+    assert evaluate_all(eq, resp(body)).passed
+    assert not evaluate_all(ne, resp(body)).passed
+
+
+def test_json_eq_keeps_types_apart():
+    def eq(value, body):
+        return evaluate_all([{"type": "json_field", "path": "v", "operator": "eq", "value": value}], resp(body)).passed
+
+    assert not eq("201", '{"v": 200}')
+    assert not eq(1, '{"v": true}')  # True == 1 in Python, not in JSON
+    assert not eq("true", '{"v": 1}')
+    assert not eq(200, '{"v": "200"}')  # a string field compares as a string
+    assert not eq("not json", '{"v": 5}')
+
+
+def test_json_contains_on_lists_and_strings():
+    def contains(value, body):
+        a = [{"type": "json_field", "path": "v", "operator": "contains", "value": value}]
+        return evaluate_all(a, resp(body)).passed
+
+    assert contains("2", '{"v": [1, 2, 3]}')
+    assert not contains("4", '{"v": [1, 2, 3]}')
+    assert contains("ok", '{"v": "all ok"}')
+    assert contains(5, '{"v": "v5"}')  # used to raise TypeError
 
 
 def test_json_missing_field_and_invalid_json():
