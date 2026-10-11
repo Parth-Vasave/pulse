@@ -2,11 +2,20 @@
 
 A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an API, and distributed workers check it on a schedule, store every result, **open an incident after N consecutive failures, resolve it after M consecutive successes**, and notify you by email, webhook or Discord.
 
-![Dashboard](docs/screenshots/dashboard.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/dashboard-dark.png">
+  <img alt="Dashboard: health headline, last-hour response time per monitor, and the monitor list" src="docs/screenshots/dashboard.png">
+</picture>
 
 | Monitor details | Incident timeline |
 |---|---|
-| ![Monitor](docs/screenshots/monitor.png) | ![Incident](docs/screenshots/incident.png) |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/monitor-dark.png"><img alt="Monitor page with uptime, percentiles and charts" src="docs/screenshots/monitor.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/incident-dark.png"><img alt="Resolved incident with root cause and timeline" src="docs/screenshots/incident.png"></picture> |
+
+| Landing page | Public status page |
+|---|---|
+| <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/landing-dark.png"><img alt="Landing page with quick-start commands and an outage replay" src="docs/screenshots/landing.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/status-dark.png"><img alt="Public status page" src="docs/screenshots/status.png"></picture> |
+
+Screenshots follow your GitHub theme; the app itself follows your system's light or dark setting.
 
 ## Features
 - Monitors: URL, method (GET/POST/PUT/PATCH/DELETE), headers, JSON/text body, expected status, timeout, interval (30 s–24 h), response-time threshold, failure/recovery thresholds, optional immediate retries on network errors
@@ -14,7 +23,11 @@ A small-scale take on UptimeRobot / Datadog synthetic monitoring. Register an AP
 - Error classification: timeout, DNS, connect, invalid response, unexpected status, HTTP error, assertion failed, slow, blocked target
 - Incident engine: pure state machine, DB-enforced deduplication, full timeline; pausing or re-pointing a monitor closes its open incident and restarts its state (no false recovery alert)
 - Notifications with retry/backoff: email (SMTP), generic webhook, Discord
-- Dashboard (UP / DOWN / PAUSED with icons, heartbeat strips), monitor page (1 h/24 h/7 d/30 d charts: response time, time-weighted availability, errors by cause; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime), incidents page, settings
+- Dashboard: a one-line health headline ("1 monitor is down" / all up), 24 h uptime and active incidents, a last-hour response-time lane per monitor with failures marked in red, and a sortable monitor list (UP / DOWN / PAUSED, recent-check strip, 24 h uptime, response, last check); refreshes every 10 s
+- Monitor page: 1 h/24 h/7 d/30 d charts for response time, time-weighted availability and errors by cause, each with a "Show as table" view; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime; every recent check. Monitors carry a short catalog number (`PLS-004`)
+- Incidents list and incident page: root cause, consecutive failures/passes, and a timeline of every state change, check and notification
+- Landing page at `/` with the quick-start commands and an animated replay of an outage being caught; the app lives at `/dashboard`
+- Light and dark themes, following the system setting
 - Account settings: change email/password (re-authenticated; a password change signs out other sessions) and delete account; settings organised into Account / Notifications / Status page / API keys
 - Public status page, API keys (hashed, shown once, revocable)
 - Security: Argon2, HttpOnly cookies, tenant isolation, **SSRF protection with DNS-rebinding defence**, **secrets (monitor headers, webhook URLs) encrypted at rest** with key rotation, rate limiting, security headers, request limits
@@ -40,7 +53,7 @@ docker compose up --build        # or: make dev
 ```
 | URL | What |
 |---|---|
-| http://localhost:3000 | App (log in with the seeded `demo@example.com` / `demo-password-123`, or register) |
+| http://localhost:3000 | Landing page; **Log in** with the seeded `demo@example.com` / `demo-password-123` (or register) to reach the dashboard at `/dashboard` |
 | http://localhost:8000/docs | API docs |
 | http://localhost:8025 | Mailpit: catches alert emails |
 | http://localhost:9000 | Demo target API with a fail/restore switch |
@@ -48,7 +61,7 @@ docker compose up --build        # or: make dev
 Startup order is handled by Compose: Postgres + Redis (healthchecks) → `migrate` (Alembic + seed) → API, worker, scheduler → frontend.
 
 ### Walk-through (the demo)
-1. Open the app and log in as the demo user. Charts are pre-populated from seeded history.
+1. Open http://localhost:3000, click **Log in** and sign in as the demo user. Charts are pre-populated from seeded history.
 2. **Add monitor** → URL `http://demo-service:9000/switch`, check every 30 s, open incident after 2, resolve after 1.
 3. Add an **email channel** in Settings (use **Send test** and watch Mailpit).
 4. Open http://localhost:9000 → **Make it fail**. Within ~1 minute the monitor turns **DOWN**, an incident opens, and an email arrives.
@@ -101,8 +114,8 @@ make test            # backend + frontend unit/integration
 make e2e             # Playwright against the running stack
 make lint            # ruff, mypy, eslint, tsc
 ```
-- **Backend (269 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, scheduler self-monitoring and the heartbeat ping, encryption at rest incl. key rotation and the data migration, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
-- **Frontend (32 tests):** formatting, form parsing, status, heartbeat, banner, timeline, dialog, buttons, toggle, segmented control, copy button and toast components.
+- **Backend (286 tests):** unit (state machine, SSRF, assertions, retry), time-weighted metrics on exact timelines (DST, gaps, pauses), API (auth, validation, CRUD, tenant isolation, rate limiting, headers, size limits, status page, API keys), integration against real Postgres/Redis and a real local HTTP target (checker, incident lifecycle, 4-thread race → one incident, scheduler incl. broker outage, scheduler self-monitoring and the heartbeat ping, encryption at rest incl. key rotation and the data migration, notification retry/failure, Redis-outage recovery), and an API-level end-to-end lifecycle test.
+- **Frontend (46 tests):** formatting, form parsing and notices, session expiry (401 handling, safe redirects, stale-data notice), account settings, and the status badge, heartbeat, banner, timeline, dialog, button, toggle, segmented control, copy button and toast components.
 - **Browser E2E (2 specs):** an account flow (change password signs out a second browser, change email, delete account) and the lifecycle flow: register → create monitor → fail demo API → incident → restore → resolved, driven through the UI.
 
 Backend tests need Postgres database `monitor_test` and Redis (`TEST_DATABASE_URL`, `REDIS_URL` override the defaults).
@@ -127,7 +140,7 @@ docs/      ARCHITECTURE, SECURITY, API, DEPLOYMENT, screenshots
 Tagging `vX.Y.Z` publishes images to GHCR and a GitHub release; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and `docker-compose.prod.yml`.
 
 ## Dependency pinning
-Python dependencies are **pinned with hashes**: edit `backend/requirements.in` (and `requirements-dev.in`), run `make lock`, and commit the generated `requirements.txt` / `requirements-dev.txt`. Docker and CI install only those exact, hash-verified versions, so a build next month is the same build as today. Node dependencies are pinned by `frontend/package-lock.json` (`npm ci`). Dependabot opens weekly update PRs, and CI runs `pip-audit`, `npm audit` and a Trivy image scan (HIGH/CRITICAL) and enforces a backend coverage floor of 88%. Infrastructure images use fixed tags (`postgres:16`, `redis:7`, `mailpit:v1.31.3`, `prometheus:v3.15.0`).
+Python dependencies are **pinned with hashes**: edit `backend/requirements.in` (and `requirements-dev.in`), run `make lock`, and commit the generated `requirements.txt` / `requirements-dev.txt`. Docker and CI install only those exact, hash-verified versions, so a build next month is the same build as today. Node dependencies are pinned by `frontend/package-lock.json` (`npm ci`). Dependabot opens weekly update PRs, and CI runs `pip-audit`, `npm audit` and a Trivy image scan (HIGH/CRITICAL) and enforces a backend coverage floor of 88%. Infrastructure images use fixed tags (`postgres:16`, `redis:7`, `mailpit:v1.31.4`, `prometheus:v3.15.0`).
 
 ## License
 [MIT](LICENSE) (c) 2026 Parth Vasave
