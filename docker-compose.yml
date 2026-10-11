@@ -86,7 +86,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.31.4
     ports: ["8025:8025"]
     restart: unless-stopped
 
