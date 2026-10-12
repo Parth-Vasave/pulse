@@ -44,13 +44,13 @@ def traces(user: User = Depends(get_current_user), db: Session = Depends(get_db)
 
 @router.get("/{monitor_id}", response_model=MonitorOut)
 def get_monitor(monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
-    return _out(monitor, stats.uptime_windows(db, monitor)["24h"])
+    return _out(monitor, stats.uptime_24h(db, monitor))
 
 
 @router.patch("/{monitor_id}", response_model=MonitorOut)
 def update(patch: MonitorUpdate, monitor: Monitor = Depends(get_owned_monitor), db: Session = Depends(get_db)):
     monitor = monitor_service.update_monitor(db, monitor, patch)
-    return _out(monitor, stats.uptime_windows(db, monitor)["24h"])
+    return _out(monitor, stats.uptime_24h(db, monitor))
 
 
 @router.delete("/{monitor_id}", status_code=204)

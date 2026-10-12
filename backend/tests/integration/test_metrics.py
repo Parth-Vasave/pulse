@@ -200,3 +200,11 @@ def test_recent_traces_keeps_the_newest_per_monitor_oldest_first(db):
     assert [at for _, _, at in traces[a.id]] == [NOW - timedelta(seconds=o) for o in every(M, 4 * M)]
     assert [(ok, ms) for ok, ms, _ in traces[b.id]] == [(False, None)] * 3
     assert traces[empty.id] == []
+
+
+def test_longest_interval_carries_over_from_well_before_the_window(db):
+    """A 24 h monitor's check covers up to 48 h, so one taken 40 h before the window still reaches 8 h into it."""
+    m = make_monitor(db, make_user(db), interval_seconds=86_400)
+    put(db, m, [64 * H], success=False)
+    cov = stats.coverage(db, [m.id], [timedelta(hours=24)], NOW)[m.id][0]
+    assert (cov.up_seconds, cov.down_seconds) == (0.0, 8 * H)
