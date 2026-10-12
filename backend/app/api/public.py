@@ -4,12 +4,27 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import cache
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.models import Incident, Monitor, User
 from app.repositories import stats
 
 router = APIRouter(prefix="/api/public", tags=["public"])
+# 30 days of time-weighted uptime scans every retained check of every listed monitor (~1.6 s of DB time
+# for 20 monitors at a 30 s interval), and this endpoint is unauthenticated. One minute of lag moves a
+# 30-day figure by at most 0.0023 points; component status and incidents stay live.
+UPTIME_CACHE_SECONDS = 60
+
+
+def _uptime_30d(db: Session, user_id: int, monitors: list[Monitor]) -> dict[int, float | None]:
+    key = f"status-uptime-30d:{user_id}"
+    cached = cache.get_json(key)  # JSON object keys are strings
+    if cached is not None and all(str(m.id) in cached for m in monitors):
+        return {m.id: cached[str(m.id)] for m in monitors}
+    uptime = stats.uptime_30d_by_monitor(db, monitors)
+    cache.set_json(key, uptime, UPTIME_CACHE_SECONDS)
+    return uptime
 
 
 def _component_status(m: Monitor) -> str:
@@ -37,7 +52,7 @@ def public_status(slug: str, db: Session = Depends(get_db)):
     monitors = db.scalars(
         select(Monitor).where(Monitor.user_id == user.id, Monitor.show_on_status_page.is_(True)).order_by(Monitor.name)
     ).all()
-    uptime = stats.uptime_30d_by_monitor(db, list(monitors))
+    uptime = _uptime_30d(db, user.id, list(monitors))
     components = [{"name": m.name, "status": _component_status(m), "uptime_30d": uptime.get(m.id)} for m in monitors]
     since = datetime.now(UTC) - timedelta(days=14)
     incidents = (
