@@ -244,25 +244,24 @@ def recent_outcomes(db: Session, monitor_ids: list[int], limit: int = 60) -> dic
 def recent_traces(
     db: Session, monitor_ids: list[int], limit: int = 60
 ) -> dict[int, list[tuple[bool, int | None, datetime]]]:
-    """Last `limit` (success, response_time_ms, checked_at) per monitor, oldest first (for the dashboard plot)."""
+    """Last `limit` (success, response_time_ms, checked_at) per monitor, oldest first (for the dashboard plot).
+
+    One LATERAL index scan per monitor reads exactly `limit` rows each, instead of ranking every retained
+    check (35 days at a 30 s interval is ~100k rows per monitor) on every dashboard refresh.
+    """
     if not monitor_ids:
         return {}
-    rn = func.row_number().over(partition_by=CheckResult.monitor_id, order_by=CheckResult.checked_at.desc())
-    ranked = (
-        select(
-            CheckResult.monitor_id,
-            CheckResult.success,
-            CheckResult.response_time_ms,
-            CheckResult.checked_at,
-            rn.label("rn"),
-        )
-        .where(CheckResult.monitor_id.in_(monitor_ids))
-        .subquery()
-    )
     rows = db.execute(
-        select(ranked.c.monitor_id, ranked.c.success, ranked.c.response_time_ms, ranked.c.checked_at)
-        .where(ranked.c.rn <= limit)
-        .order_by(ranked.c.checked_at)
+        text("""
+SELECT m.id, r.success, r.response_time_ms, r.checked_at
+FROM unnest(CAST(:ids AS integer[])) AS m(id)
+CROSS JOIN LATERAL (
+  SELECT success, response_time_ms, checked_at FROM check_results
+  WHERE monitor_id = m.id ORDER BY checked_at DESC LIMIT :limit
+) r
+ORDER BY r.checked_at
+"""),
+        {"ids": monitor_ids, "limit": limit},
     ).all()
     out: dict[int, list[tuple[bool, int | None, datetime]]] = {mid: [] for mid in monitor_ids}
     for monitor_id, success, ms, at in rows:

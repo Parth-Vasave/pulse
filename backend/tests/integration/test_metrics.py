@@ -187,3 +187,16 @@ def test_dst_and_session_timezone_do_not_change_results(db):
     uptime, stamps = utc_result
     assert uptime == round(71 / 72 * 100, 3)
     assert len(stamps) == 72 and all((b - a) == timedelta(hours=1) for a, b in zip(stamps, stamps[1:], strict=False))
+
+
+def test_recent_traces_keeps_the_newest_per_monitor_oldest_first(db):
+    user = make_user(db)
+    a = make_monitor(db, user, name="a", interval_seconds=60)
+    b = make_monitor(db, user, name="b", interval_seconds=60)
+    empty = make_monitor(db, user, name="empty", interval_seconds=60)
+    put(db, a, every(M, 10 * M), success=True)  # 10 checks
+    put(db, b, every(M, 3 * M), success=False, rt=None)  # fewer than the limit
+    traces = stats.recent_traces(db, [a.id, b.id, empty.id], limit=4)
+    assert [at for _, _, at in traces[a.id]] == [NOW - timedelta(seconds=o) for o in every(M, 4 * M)]
+    assert [(ok, ms) for ok, ms, _ in traces[b.id]] == [(False, None)] * 3
+    assert traces[empty.id] == []
