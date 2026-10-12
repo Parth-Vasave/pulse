@@ -103,8 +103,9 @@ def _reset_rate_limiter():
 
     ratelimit._client = None
     r = redis.Redis.from_url(get_settings().redis_url)
-    for key in r.scan_iter("rl:*"):
-        r.delete(key)
+    for pattern in ("rl:*", "pulse:cache:*"):  # also forget cached aggregates: IDs are reused across tests
+        for key in r.scan_iter(pattern):
+            r.delete(key)
     yield
     ratelimit._client = None
 
