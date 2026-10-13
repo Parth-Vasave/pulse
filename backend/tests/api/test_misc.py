@@ -340,3 +340,42 @@ def test_traces_scoped_and_ordered(auth_client, other_client, db):
     times = [datetime.fromisoformat(c["at"]) for c in trace]
     assert times == sorted(times) and all(t.tzinfo is not None for t in times)
     assert other_client.get("/api/monitors/traces").json() == {}
+
+
+def test_public_status_uptime_is_cached_but_status_stays_live(auth_client, client, db):
+    m = auth_client.post("/api/monitors", json=VALID | {"name": "API", "show_on_status_page": True}).json()
+    add_checks(db, m["id"], [10], success=True, age=timedelta(minutes=10))
+    auth_client.put("/api/status-page", json={"enabled": True, "slug": "acme"})
+    first = client.get("/api/public/status/acme").json()["components"][0]
+    assert first["uptime_30d"] == 100.0
+
+    add_checks(db, m["id"], [None], success=False, age=timedelta(minutes=5))
+    row = db.get(Monitor, m["id"])
+    row.status = "down"
+    db.commit()
+    second = client.get("/api/public/status/acme").json()["components"][0]
+    assert second["uptime_30d"] == 100.0  # served from the cache
+    assert second["status"] == "outage"  # not cached
+
+    # A newly listed monitor isn't in the cached figures, so they are recomputed.
+    auth_client.post("/api/monitors", json=VALID | {"name": "New", "show_on_status_page": True})
+    components = client.get("/api/public/status/acme").json()["components"]
+    assert [c["name"] for c in components] == ["API", "New"]
+    assert components[0]["uptime_30d"] < 100.0 and components[1]["uptime_30d"] is None
+
+
+def test_public_status_works_without_redis(auth_client, client, db, monkeypatch):
+    import redis
+
+    from app.core import cache
+
+    def down(*_, **__):
+        raise redis.ConnectionError("down")
+
+    monkeypatch.setattr(cache._redis(), "get", down)
+    monkeypatch.setattr(cache._redis(), "set", down)
+    m = auth_client.post("/api/monitors", json=VALID | {"show_on_status_page": True}).json()
+    add_checks(db, m["id"], [10], success=True)
+    auth_client.put("/api/status-page", json={"enabled": True, "slug": "acme"})
+    r = client.get("/api/public/status/acme")
+    assert r.status_code == 200 and r.json()["components"][0]["uptime_30d"] == 100.0

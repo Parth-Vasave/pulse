@@ -31,6 +31,10 @@ RANGES: dict[str, tuple[timedelta, int]] = {
     "30d": (timedelta(days=30), 21600),
 }
 CAP_MULTIPLIER = 2
+# Monitor intervals are at most 24 h (MonitorCreate), so no check older than this before a window can cover it.
+# A constant bound the (monitor_id, checked_at) index can use: the exact per-monitor bound below depends on a
+# joined column, which would otherwise make Postgres read every retained check of the monitor.
+MAX_LOOKBACK = timedelta(seconds=86_400 * CAP_MULTIPLIER)
 
 # One CTE shared by every time-weighted query: per check, the interval [s, e) it speaks for.
 _SEGMENTS = """
@@ -40,6 +44,7 @@ WITH c AS (
          m.interval_seconds * {cap} * interval '1 second' AS cap
   FROM check_results r JOIN monitors m ON m.id = r.monitor_id
   WHERE r.monitor_id = ANY(:ids) AND r.checked_at <= CAST(:now AS timestamptz)
+    AND r.checked_at >= CAST(:scan_from AS timestamptz)
     AND r.checked_at >= CAST(:min_start AS timestamptz) - m.interval_seconds * {cap} * interval '1 second'
 ), seg AS (
   SELECT monitor_id, success, error_type, response_time_ms AS rt, checked_at AS s,
@@ -78,7 +83,13 @@ def coverage(
     out = {mid: [Coverage() for _ in windows] for mid in monitor_ids}
     if not monitor_ids:
         return out
-    params: dict[str, Any] = {"ids": monitor_ids, "now": now, "min_start": now - max(windows)}
+    min_start = now - max(windows)
+    params: dict[str, Any] = {
+        "ids": monitor_ids,
+        "now": now,
+        "min_start": min_start,
+        "scan_from": min_start - MAX_LOOKBACK,
+    }
     cols = []
     for i, w in enumerate(windows):
         params[f"w{i}"] = now - w
@@ -172,7 +183,10 @@ SELECT date_bin(interval '{int(bucket_s)} seconds', GREATEST(s, CAST(:start AS t
 FROM seg GROUP BY 1, 2, 3 ORDER BY 1
 """
     )
-    rows = db.execute(text(sql), {"ids": [monitor.id], "now": now, "start": start, "min_start": start}).all()
+    rows = db.execute(
+        text(sql),
+        {"ids": [monitor.id], "now": now, "start": start, "min_start": start, "scan_from": start - MAX_LOOKBACK},
+    ).all()
 
     buckets: dict[datetime, dict[str, Any]] = {}
     for b, success, error_type, checks, rt_n, rt_sum, rt_max, up_s, down_s in rows:
@@ -210,6 +224,10 @@ FROM seg GROUP BY 1, 2, 3 ORDER BY 1
             }
         )
     return points
+
+
+def uptime_24h(db: Session, monitor: Monitor) -> float | None:
+    return coverage(db, [monitor.id], [timedelta(hours=24)])[monitor.id][0].uptime
 
 
 def uptime_24h_by_monitor(db: Session, monitors: list[Monitor]) -> dict[int, float | None]:
