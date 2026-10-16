@@ -13,18 +13,20 @@ from app.repositories import stats
 router = APIRouter(prefix="/api/public", tags=["public"])
 # 30 days of time-weighted uptime scans every retained check of every listed monitor (~1.6 s of DB time
 # for 20 monitors at a 30 s interval), and this endpoint is unauthenticated. One minute of lag moves a
-# 30-day figure by at most 0.0023 points; component status and incidents stay live.
+# 30-day figure by at most 0.0023 points; component status and incidents stay live. When the figures
+# expire, one request recomputes them while concurrent visitors keep getting the previous ones.
 UPTIME_CACHE_SECONDS = 60
 
 
 def _uptime_30d(db: Session, user_id: int, monitors: list[Monitor]) -> dict[int, float | None]:
-    key = f"status-uptime-30d:{user_id}"
-    cached = cache.get_json(key)  # JSON object keys are strings
-    if cached is not None and all(str(m.id) in cached for m in monitors):
-        return {m.id: cached[str(m.id)] for m in monitors}
-    uptime = stats.uptime_30d_by_monitor(db, monitors)
-    cache.set_json(key, uptime, UPTIME_CACHE_SECONDS)
-    return uptime
+    ids = [str(m.id) for m in monitors]  # JSON object keys are strings
+    cached = cache.get_or_compute(
+        f"status-uptime-30d:{user_id}",
+        lambda: stats.uptime_30d_by_monitor(db, monitors),
+        UPTIME_CACHE_SECONDS,
+        usable=lambda v: all(i in v for i in ids),  # a newly listed monitor forces a recompute
+    )
+    return {m.id: cached[str(m.id)] for m in monitors}
 
 
 def _component_status(m: Monitor) -> str:
