@@ -23,6 +23,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.models import CheckResult, Monitor
+from app.models.monitor import MAX_INTERVAL_SECONDS
 
 RANGES: dict[str, tuple[timedelta, int]] = {
     "1h": (timedelta(hours=1), 60),
@@ -31,10 +32,10 @@ RANGES: dict[str, tuple[timedelta, int]] = {
     "30d": (timedelta(days=30), 21600),
 }
 CAP_MULTIPLIER = 2
-# Monitor intervals are at most 24 h (MonitorCreate), so no check older than this before a window can cover it.
+# No check older than this before a window can cover it (the database caps intervals at MAX_INTERVAL_SECONDS).
 # A constant bound the (monitor_id, checked_at) index can use: the exact per-monitor bound below depends on a
 # joined column, which would otherwise make Postgres read every retained check of the monitor.
-MAX_LOOKBACK = timedelta(seconds=86_400 * CAP_MULTIPLIER)
+MAX_LOOKBACK = timedelta(seconds=MAX_INTERVAL_SECONDS * CAP_MULTIPLIER)
 
 # One CTE shared by every time-weighted query: per check, the interval [s, e) it speaks for.
 _SEGMENTS = """
