@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -9,12 +9,21 @@ from app.core.crypto import EncryptedJSON
 from app.core.database import Base
 from app.models._common import created_col, updated_col
 
+# Enforced by the API (MonitorCreate) and guaranteed by the database. The time-weighted stats rely on the
+# maximum: they bound every scan by how far back a check can still cover a window (see repositories.stats).
+MIN_INTERVAL_SECONDS = 30
+MAX_INTERVAL_SECONDS = 86_400
+
 
 class Monitor(Base):
     __tablename__ = "monitors"
     __table_args__ = (
         # The scheduler's hot query: enabled monitors whose next_check_at has passed.
         Index("ix_monitors_due", "next_check_at", postgresql_where="enabled"),
+        CheckConstraint(
+            f"interval_seconds BETWEEN {MIN_INTERVAL_SECONDS} AND {MAX_INTERVAL_SECONDS}",
+            name="ck_monitors_interval_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

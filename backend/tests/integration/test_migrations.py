@@ -10,6 +10,7 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401  (register every table on Base.metadata)
@@ -159,4 +160,30 @@ def test_retries_migration_fits_existing_checks_into_their_interval(scratch_url)
     with engine.connect() as conn:
         retries = conn.execute(text("SELECT check_retries FROM monitors ORDER BY id")).scalars().all()
     assert retries == list(cases.values())
+    engine.dispose()
+
+
+def test_interval_range_migration_clamps_old_rows_then_enforces_the_range(scratch_url):
+    """The stats rely on intervals of at most 24 h, so the database must refuse longer ones, not just the API."""
+    cfg = _alembic_config(scratch_url)
+    command.upgrade(cfg, "0004")
+    engine = create_engine(scratch_url)
+    with Session(engine) as session:
+        user = User(email="i@example.com", password_hash="x")
+        session.add(user)
+        session.flush()
+        session.add_all(
+            Monitor(user_id=user.id, name=f"m{i}", url="https://a.example.com", interval_seconds=iv)
+            for i, iv in enumerate([10, 60, 200_000])
+        )
+        session.commit()
+        user_id = user.id
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as conn:
+        intervals = conn.execute(text("SELECT interval_seconds FROM monitors ORDER BY id")).scalars().all()
+    assert intervals == [30, 60, 86_400]
+    with Session(engine) as session, pytest.raises(IntegrityError, match="ck_monitors_interval_range"):
+        session.add(Monitor(user_id=user_id, name="long", url="https://a.example.com", interval_seconds=86_401))
+        session.commit()
     engine.dispose()

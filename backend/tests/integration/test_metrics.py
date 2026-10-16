@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import text
 
 from app.models import CheckResult
+from app.models.monitor import MAX_INTERVAL_SECONDS
 from app.repositories import stats
 from tests.integration.helpers import make_monitor, make_user
 
@@ -203,8 +204,9 @@ def test_recent_traces_keeps_the_newest_per_monitor_oldest_first(db):
 
 
 def test_longest_interval_carries_over_from_well_before_the_window(db):
-    """A 24 h monitor's check covers up to 48 h, so one taken 40 h before the window still reaches 8 h into it."""
-    m = make_monitor(db, make_user(db), interval_seconds=86_400)
-    put(db, m, [64 * H], success=False)
+    """A check of the longest-interval monitor covers 2 intervals, so one taken that long minus 8 h before the
+    window still reaches 8 h into it - however far back the scan has to start to find it."""
+    m = make_monitor(db, make_user(db), interval_seconds=MAX_INTERVAL_SECONDS)
+    put(db, m, [24 * H + stats.CAP_MULTIPLIER * MAX_INTERVAL_SECONDS - 8 * H], success=False)
     cov = stats.coverage(db, [m.id], [timedelta(hours=24)], NOW)[m.id][0]
     assert (cov.up_seconds, cov.down_seconds) == (0.0, 8 * H)

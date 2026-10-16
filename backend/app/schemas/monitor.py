@@ -4,6 +4,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.monitor import MAX_INTERVAL_SECONDS, MIN_INTERVAL_SECONDS
 from app.services.retry import max_check_seconds
 
 HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -44,7 +45,7 @@ class MonitorCreate(BaseModel):
     body: str | None = Field(default=None, max_length=65536)
     expected_status_code: int = Field(default=200, ge=100, le=599)
     timeout_seconds: int = Field(default=10, ge=1, le=30)
-    interval_seconds: int = Field(default=60, ge=30, le=86400)
+    interval_seconds: int = Field(default=60, ge=MIN_INTERVAL_SECONDS, le=MAX_INTERVAL_SECONDS)
     response_time_threshold_ms: int | None = Field(default=None, ge=1, le=60000)
     failure_threshold: int = Field(default=3, ge=1, le=10)
     recovery_threshold: int = Field(default=2, ge=1, le=10)
