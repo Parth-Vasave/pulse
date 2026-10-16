@@ -98,10 +98,11 @@ def _reset_rate_limiter():
     """Each test starts with empty counters and a fresh async client (TestClient loops are per-test)."""
     import redis
 
-    from app.core import ratelimit
+    from app.core import cache, ratelimit
     from app.core.config import get_settings
 
     ratelimit._client = None
+    cache._skip_until = 0.0
     r = redis.Redis.from_url(get_settings().redis_url)
     for pattern in ("rl:*", "pulse:cache:*"):  # also forget cached aggregates: IDs are reused across tests
         for key in r.scan_iter(pattern):
