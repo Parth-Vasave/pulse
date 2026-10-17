@@ -1,5 +1,5 @@
 # Shared image for the API, worker, scheduler and migration job (different commands in compose).
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/backend:/app
 # Pick up Debian security fixes published after the base image was built.
