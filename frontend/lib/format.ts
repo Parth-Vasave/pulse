@@ -14,7 +14,8 @@ export function formatPercent(v: number | null | undefined, digits = 2): string 
 
 export function formatMs(v: number | null | undefined): string {
   if (v == null) return "–";
-  return v >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${Math.round(v)} ms`;
+  const r = Math.round(v);
+  return r >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${r} ms`;
 }
 
 export function timeAgo(iso: string | null | undefined, now: number = Date.now()): string {
