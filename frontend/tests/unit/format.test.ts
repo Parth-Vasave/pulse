@@ -10,6 +10,8 @@ describe("format", () => {
   it("formats percentages and missing data without pretending", () => {
     expect(formatPercent(99.5)).toBe("99.5%");
     expect(formatPercent(100)).toBe("100%");
+    expect(formatPercent(99.996)).toBe("99.99%");
+    expect(formatPercent(99.29)).toBe("99.29%");
     expect(formatPercent(null)).toBe("No data");
   });
   it("formats latency", () => {
