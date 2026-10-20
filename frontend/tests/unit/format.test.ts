@@ -17,6 +17,7 @@ describe("format", () => {
   it("formats latency", () => {
     expect(formatMs(183)).toBe("183 ms");
     expect(formatMs(2500)).toBe("2.50 s");
+    expect(formatMs(999.6)).toBe("1.00 s");
     expect(formatMs(null)).toBe("–");
   });
   it("formats relative time", () => {
