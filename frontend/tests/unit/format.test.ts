@@ -6,6 +6,7 @@ describe("format", () => {
     expect(formatDuration(7)).toBe("7s");
     expect(formatDuration(261)).toBe("4m 21s");
     expect(formatDuration(3725)).toBe("1h 2m");
+    expect(formatDuration(263_520)).toBe("3d 1h");
   });
   it("formats percentages and missing data without pretending", () => {
     expect(formatPercent(99.5)).toBe("99.5%");
