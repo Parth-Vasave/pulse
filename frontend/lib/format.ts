@@ -9,7 +9,10 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 export function formatPercent(v: number | null | undefined, digits = 2): string {
-  return v == null ? "No data" : `${Number(v.toFixed(digits))}%`;
+  if (v == null) return "No data";
+  // Round down, so any downtime at all keeps the figure below 100%.
+  const f = 10 ** digits;
+  return `${Math.floor(v * f + 1e-9) / f}%`; // epsilon: 0.29 * 100 is 28.999…
 }
 
 export function formatMs(v: number | null | undefined): string {
