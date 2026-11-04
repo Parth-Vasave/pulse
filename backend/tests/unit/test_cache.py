@@ -176,3 +176,15 @@ def test_leader_releases_the_lock_when_compute_fails():
         cache.get_or_compute("k", boom, 60)
     assert not cache._redis().exists(cache.PREFIX + "lock:k")
     assert cache.get_or_compute("k", lambda: "v", 60) == "v"
+
+
+def test_local_locks_stay_bounded_and_keep_the_held_ones(redis_down, monkeypatch):
+    monkeypatch.setattr(cache, "_LOCAL_MAX", 4)
+    with cache._leader("held") as won:
+        assert won
+        for i in range(10):  # one status page after another while Redis is down
+            cache.get_or_compute(f"k{i}", lambda: "v", 60)
+        assert len(cache._local_locks) <= 4
+        assert "held" in cache._local_locks  # still single-flight for the key being computed
+        with cache._leader("held") as again:
+            assert not again

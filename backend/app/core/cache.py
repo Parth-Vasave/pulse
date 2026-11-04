@@ -116,6 +116,11 @@ def _leader(key: str) -> Iterator[bool]:
                         _trip(exc)  # the lock expires on its own
             return
     with _local_locks_guard:
+        if len(_local_locks) >= _LOCAL_MAX:
+            # Bounded like _local. Dropping a lock just fetched but not yet taken can at worst let a second
+            # caller compute too, which the cache tolerates anyway.
+            for k in [k for k, lk in _local_locks.items() if not lk.locked()]:
+                del _local_locks[k]
         local = _local_locks.setdefault(key, threading.Lock())
     won = local.acquire(blocking=False)
     try:
