@@ -79,6 +79,40 @@ def test_breaker_skips_redis_after_a_failure_then_tries_again(redis_down):
     assert len(redis_down) == 2
 
 
+def served_during_a_later_outage(monkeypatch, seconds):
+    """Compute "old" while Redis is up, then `seconds` later take Redis down and ask again while another
+    caller holds the recompute: the answer is whatever the local copy can still serve."""
+    monkeypatch.setattr(cache, "WAIT_SECONDS", 0.1)
+    cache.get_or_compute("k", lambda: "old", 60)
+
+    def down(*_, **__):
+        raise redis.ConnectionError("down")
+
+    for method in ("get", "set", "eval"):
+        monkeypatch.setattr(cache._redis(), method, down)
+    clock = SimpleNamespace(
+        time=lambda: time.time() + seconds, monotonic=lambda: time.monotonic() + seconds, sleep=time.sleep
+    )
+    monkeypatch.setattr(cache, "time", clock)
+    cache._skip_until = clock.monotonic() + cache.BREAKER_SECONDS
+    with cache._leader("k") as won:
+        assert won
+        follower = []
+        t = threading.Thread(target=lambda: follower.append(cache.get_or_compute("k", lambda: "new", 60)))
+        t.start()
+        t.join()
+    return follower[0]
+
+
+def test_local_copy_covers_a_recompute_while_redis_would_still_have_it(monkeypatch):
+    assert served_during_a_later_outage(monkeypatch, 61) == "old"  # stale, within 10 x freshness
+
+
+def test_local_copy_expires_when_the_redis_entry_would(monkeypatch):
+    # Redis served the key in between, so the local copy was never refreshed: an hour old, not 10 minutes.
+    assert served_during_a_later_outage(monkeypatch, 3600) == "new"
+
+
 def test_corrupt_value_is_a_miss_and_gets_replaced():
     cache._redis().set(cache.PREFIX + "k", b"\xff{not json")
     assert cache.get_or_compute("k", lambda: {"1": 99.5}, 60) == {"1": 99.5}

@@ -7,7 +7,8 @@ BREAKER_SECONDS, so an outage costs one short timeout per process instead of two
 
 Single-flight: when an entry goes stale, one caller recomputes it while concurrent callers keep getting
 the old value, so an expiry costs one computation instead of one per request in flight. A process-local
-copy and lock take over while Redis is down, so the protection holds (per process) during an outage.
+copy and lock take over while Redis is down, so the protection holds (per process) during an outage. The
+local copy expires like the Redis entry does, so an outage never serves a value older than Redis would.
 """
 
 import json
@@ -37,7 +38,7 @@ _LOCAL_MAX = 1024
 _RELEASE = "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0"
 
 _skip_until = 0.0  # time.monotonic() before which Redis is presumed down
-_local: dict[str, str] = {}  # key -> serialised entry, read only while Redis is unavailable
+_local: dict[str, tuple[float, str]] = {}  # key -> (monotonic expiry, entry), read only while Redis is down
 _local_locks: dict[str, threading.Lock] = {}
 _local_locks_guard = threading.Lock()
 _MISSING = object()
@@ -69,7 +70,9 @@ def _read(key: str) -> tuple[float, Any] | None:
         except redis.RedisError as exc:
             _trip(exc)
     if not _available():
-        raw = _local.get(key)
+        hit = _local.get(key)
+        # Only refreshed when this process computes, so without an expiry it could be hours older than Redis's.
+        raw = hit[1] if hit is not None and hit[0] > time.monotonic() else None
     if raw is None:
         return None
     try:
@@ -84,7 +87,7 @@ def _write(key: str, value: Any, ttl_seconds: int) -> None:
     raw = json.dumps({"at": time.time(), "v": value})
     if len(_local) >= _LOCAL_MAX:
         _local.clear()
-    _local[key] = raw
+    _local[key] = (time.monotonic() + ttl_seconds, raw)
     if not _available():
         return
     try:
