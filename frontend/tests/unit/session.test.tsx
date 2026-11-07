@@ -7,7 +7,8 @@ describe("safeNext", () => {
   it("returns a same-site path", () => {
     expect(safeNext("?next=%2Fmonitors%2F3%3Frange%3D7d")).toBe("/monitors/3?range=7d");
   });
-  it.each(["", "?next=", "?next=https%3A%2F%2Fevil.example", "?next=%2F%2Fevil.example", "?next=%2F%5Cevil.example", "?next=dashboard"])(
+  it.each(["", "?next=", "?next=https%3A%2F%2Fevil.example", "?next=%2F%2Fevil.example", "?next=%2F%5Cevil.example", "?next=dashboard",
+    "?next=%2F%09%2Fevil.example", "?next=%2F%0A%2Fevil.example", "?next=%2F%0D%2Fevil.example", "?next=%2F%09%5Cevil.example"])(
     "falls back to the dashboard for %j", (search) => {
       expect(safeNext(search)).toBe("/dashboard");
     });

@@ -51,7 +51,17 @@ export function redirectToLogin(expired = false) {
 /** The `next` page to return to after login. Only same-site paths, so the link can't send anyone elsewhere. */
 export function safeNext(search: string): string {
   const next = new URLSearchParams(search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/dashboard";
+  if (!next?.startsWith("/")) return "/dashboard";
+  // Resolve it the way the browser will, then check where it lands. Prefix checks alone miss tricks like
+  // "/\t/evil.example": URL parsing strips tabs and newlines, which turns it into "//evil.example".
+  const base = "http://same-site.invalid";
+  try {
+    const url = new URL(next, base);
+    if (url.origin === base) return url.pathname + url.search + url.hash;
+  } catch {
+    // unparsable: fall through
+  }
+  return "/dashboard";
 }
 
 /** What to say when a page's data never loaded: "not found" only when the API said so. */
