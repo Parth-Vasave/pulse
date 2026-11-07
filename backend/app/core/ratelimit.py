@@ -30,13 +30,13 @@ _AUTH_PATHS = (
     "/api/account/delete",
 )
 
-# KEYS: current window counter, previous window counter. ARGV: window seconds, elapsed fraction of the window.
-# INCR and EXPIRE run atomically; returns the weighted estimate of requests in the trailing window.
+# KEYS: current window counter, previous window counter. ARGV: window seconds.
+# INCR and EXPIRE run atomically; returns {current count, previous count}. Rejected requests count too.
 _SCRIPT = """
 local cur = redis.call('INCR', KEYS[1])
 if cur == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]) * 2) end
 local prev = tonumber(redis.call('GET', KEYS[2]) or '0')
-return math.floor(prev * (1 - tonumber(ARGV[2])) + cur)
+return {cur, prev}
 """
 
 _client: aioredis.Redis | None = None
@@ -77,21 +77,34 @@ def _check_local(key: str, limit: int, now: float) -> tuple[bool, int]:
     return True, 0
 
 
+def _retry_after(cur: int, prev: int, limit: int, elapsed: float) -> int:
+    """Seconds until one more request fits under the sliding-window estimate.
+
+    Not simply "until this window ends": once it does, this window becomes the previous one and still
+    counts at full weight, so a client that waited only that long would be refused again (and that refusal
+    counts too). Either the previous window's weight decays enough later in this window, or this window's
+    count, carried into the next one, does. Ignores the estimate's rounding down, so it never comes up short.
+    """
+    fraction = elapsed / WINDOW_SECONDS
+    room = limit - cur - 1  # requests that still fit in this window if the previous one carried no weight
+    if room >= 0 and prev > 0:
+        return max(math.ceil((1 - room / prev - fraction) * WINDOW_SECONDS), 1)  # prev * (1 - f) + cur + 1 <= limit
+    wait = 1 - fraction + max(0.0, 1 - (limit - 1) / cur)  # into the next window: cur * (1 - g) + 1 <= limit
+    return max(math.ceil(wait * WINDOW_SECONDS), 1)
+
+
 async def check_limit(key: str, limit: int) -> tuple[bool, int]:
     """Return (allowed, retry_after_seconds)."""
     now = time.time()
     window, elapsed = divmod(now, WINDOW_SECONDS)
-    retry_after = max(math.ceil(WINDOW_SECONDS - elapsed), 1)
     try:
-        estimate = await _redis().eval(  # type: ignore[misc]
-            _SCRIPT,
-            2,
-            f"{key}:{int(window)}",
-            f"{key}:{int(window) - 1}",
-            str(WINDOW_SECONDS),
-            str(elapsed / WINDOW_SECONDS),
+        cur, prev = await _redis().eval(  # type: ignore[misc]
+            _SCRIPT, 2, f"{key}:{int(window)}", f"{key}:{int(window) - 1}", str(WINDOW_SECONDS)
         )
-        return (False, retry_after) if int(estimate) > limit else (True, 0)
+        cur, prev = int(cur), int(prev)
+        if math.floor(prev * (1 - elapsed / WINDOW_SECONDS) + cur) <= limit:
+            return True, 0
+        return False, _retry_after(cur, prev, limit, elapsed)
     except Exception as exc:  # noqa: BLE001 - limiter must never break requests
         log.warning("rate_limiter_unavailable", extra={"error": type(exc).__name__})
         return _check_local(key, limit, now)

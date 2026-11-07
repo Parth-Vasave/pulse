@@ -287,6 +287,45 @@ def test_sliding_window_counts_previous_window(monkeypatch):
     ratelimit._client = None
 
 
+@pytest.mark.parametrize(
+    ("start", "burst"),
+    [
+        (10.0, 4),  # over the limit early in a window: the wait runs into the next window
+        (59.0, 4),  # at a window's end: the next request is refused while the previous window still weighs in
+    ],
+)
+def test_waiting_retry_after_is_enough(monkeypatch, start, burst):
+    """A client that waits exactly Retry-After must get through, not be refused (and counted) again."""
+    t = [1_000_000 * 60 + start]
+    monkeypatch.setattr(ratelimit.time, "time", lambda: t[0])
+    key = f"rl:ra:{start}"
+
+    def hit() -> tuple[bool, int]:
+        ratelimit._client = None
+        return asyncio.run(ratelimit.check_limit(key, 4))
+
+    assert all(hit()[0] for _ in range(burst))
+    if start == 59.0:
+        t[0] += 1  # into the next window, where the full previous window still counts
+    allowed, retry_after = hit()
+    assert allowed is False
+    t[0] += retry_after
+    assert hit()[0] is True
+    ratelimit._client = None
+
+
+@pytest.mark.parametrize(
+    ("cur", "prev", "limit", "elapsed", "expected"),
+    [
+        (5, 0, 4, 10.0, 74),  # 50 s to the window's end, then 24 s until 5 * (1 - g) + 1 <= 4
+        (1, 4, 4, 0.0, 30),  # the previous window's 4 decay to 2 halfway through this one
+        (2, 1, 1, 30.0, 90),  # limit 1: only the window after next is empty enough
+    ],
+)
+def test_retry_after_waits_until_a_request_fits(cur, prev, limit, elapsed, expected):
+    assert ratelimit._retry_after(cur, prev, limit, elapsed) == expected
+
+
 def test_client_ip_uses_nth_entry_from_the_right(monkeypatch):
     from starlette.requests import Request
 
