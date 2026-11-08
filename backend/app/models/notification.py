@@ -18,6 +18,10 @@ class NotificationChannel(Base):
     name: Mapped[str] = mapped_column(String(120))
     configuration: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # When the destination's owner confirmed they want alerts there. Email channels start unverified and receive
+    # nothing (alerts or tests) until the recipient follows the link we send them, so an account can't make Pulse
+    # mail arbitrary inboxes. Webhook and Discord channels are verified when created.
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = created_col()
 
 

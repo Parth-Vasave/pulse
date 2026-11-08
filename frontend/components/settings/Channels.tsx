@@ -18,6 +18,7 @@ export function Channels() {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState<number | null>(null);
+  const [resending, setResending] = useState<number | null>(null);
   const [removing, setRemoving] = useState<Channel | null>(null);
 
   async function add(e: React.FormEvent<HTMLFormElement>) {
@@ -26,8 +27,9 @@ export function Channels() {
     const f = new FormData(form);
     setBusy(true); setFormError(null);
     try {
-      await api("/channels", { method: "POST", json: { type, name: f.get("name"), ...(type === "email" ? { address: f.get("target") } : { url: f.get("target") }) } });
-      form.reset(); reload(); toast.success(`Added ${f.get("name")}. Use "Send test" to check it works.`);
+      const c = await api<Channel>("/channels", { method: "POST", json: { type, name: f.get("name"), ...(type === "email" ? { address: f.get("target") } : { url: f.get("target") }) } });
+      form.reset(); reload();
+      toast.success(c.verified ? `Added ${c.name}. Use "Send test" to check it works.` : `Added ${c.name}. We emailed ${c.target} a confirmation link; alerts start once it's confirmed.`);
     } catch (err) { setFormError(describeError(err)); }
     setBusy(false);
   }
@@ -36,6 +38,12 @@ export function Channels() {
     try { await api(`/channels/${c.id}/test`, { method: "POST" }); toast.success(`Test notification sent to ${c.name}.`); }
     catch (err) { toast.error(describeError(err)); }
     setTesting(null);
+  }
+  async function resend(c: Channel) {
+    setResending(c.id);
+    try { await api(`/channels/${c.id}/resend-confirmation`, { method: "POST" }); toast.success(`Sent a new confirmation link to ${c.target}.`); }
+    catch (err) { toast.error(describeError(err)); }
+    setResending(null);
   }
   async function toggle(c: Channel, enabled: boolean) {
     try { await api(`/channels/${c.id}`, { method: "PATCH", json: { enabled } }); toast.success(`${enabled ? "Enabled" : "Disabled"} ${c.name}`); reload(); }
@@ -58,11 +66,13 @@ export function Channels() {
           {data?.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-[15px]">
               <div className="min-w-0">
-                <div className="flex items-center gap-2"><span className="font-medium">{c.name}</span><Badge>{TYPE_LABEL[c.type]}</Badge>{!c.enabled && <Badge tone="warn">Disabled</Badge>}</div>
-                <div className="truncate text-sm text-muted">{c.target}</div>
+                <div className="flex items-center gap-2"><span className="font-medium">{c.name}</span><Badge>{TYPE_LABEL[c.type]}</Badge>{!c.verified && <Badge tone="warn">Awaiting confirmation</Badge>}{!c.enabled && <Badge tone="warn">Disabled</Badge>}</div>
+                <div className="truncate text-sm text-muted">{c.verified ? c.target : `${c.target}: alerts start once the recipient follows the link we emailed`}</div>
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" icon={<SendIcon />} loading={testing === c.id} onClick={() => test(c)}>Send test</Button>
+                {c.verified
+                  ? <Button size="sm" icon={<SendIcon />} loading={testing === c.id} onClick={() => test(c)}>Send test</Button>
+                  : <Button size="sm" icon={<SendIcon />} loading={resending === c.id} onClick={() => resend(c)}>Resend link</Button>}
                 <Toggle checked={c.enabled} onChange={(v) => toggle(c, v)} label={`${c.enabled ? "Disable" : "Enable"} ${c.name}`} />
                 <IconButton label={`Delete ${c.name}`} variant="danger-ghost" onClick={() => setRemoving(c)}><TrashIcon /></IconButton>
               </div>

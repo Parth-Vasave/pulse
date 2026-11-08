@@ -17,7 +17,7 @@ import app.models  # noqa: F401  (register every table on Base.metadata)
 from alembic import command
 from app.core.config import get_settings
 from app.core.database import Base
-from app.models import Monitor, NotificationChannel, User
+from app.models import Monitor, User
 
 SCRATCH_DB = "monitor_migration_check"
 
@@ -97,10 +97,18 @@ def test_secrets_migration_encrypts_existing_plaintext_rows_and_can_be_reversed(
         session.flush()
         mon_a = Monitor(user_id=user.id, name="a", url="https://a.example.com")
         mon_b = Monitor(user_id=user.id, name="b", url="https://b.example.com")
-        chan = NotificationChannel(user_id=user.id, type="webhook", name="w")
-        session.add_all([mon_a, mon_b, chan])
+        session.add_all([mon_a, mon_b])
+        session.flush()
+        # Raw SQL: the ORM model has columns (verified_at, from 0006) that this old schema doesn't.
+        chan_id = session.execute(
+            text(
+                "INSERT INTO notification_channels (user_id, type, name, configuration, enabled, created_at)"
+                " VALUES (:u, 'webhook', 'w', '{}', true, now()) RETURNING id"
+            ),
+            {"u": user.id},
+        ).scalar_one()
         session.commit()
-        ids = (mon_a.id, mon_b.id, chan.id)
+        ids = (mon_a.id, mon_b.id, chan_id)
     with engine.begin() as conn:
         conn.execute(
             text("UPDATE monitors SET headers = CAST(:h AS jsonb) WHERE id = :i"),
@@ -187,3 +195,29 @@ def test_interval_range_migration_clamps_old_rows_then_enforces_the_range(scratc
         session.add(Monitor(user_id=user_id, name="long", url="https://a.example.com", interval_seconds=86_401))
         session.commit()
     engine.dispose()
+
+
+def test_channel_verification_migration_keeps_existing_channels_delivering(scratch_url):
+    """Channels created before 0006 were never asked to confirm; upgrading must not silently stop their alerts."""
+    cfg = _alembic_config(scratch_url)
+    command.upgrade(cfg, "0005")
+    engine = create_engine(scratch_url)
+    with engine.begin() as conn:
+        uid = conn.execute(
+            text(
+                "INSERT INTO users (email, password_hash, status_page_enabled, created_at, updated_at)"
+                " VALUES ('v@example.com', 'x', false, now(), now()) RETURNING id"
+            )
+        ).scalar_one()
+        conn.execute(
+            text(
+                "INSERT INTO notification_channels (user_id, type, name, configuration, enabled, created_at)"
+                " VALUES (:u, 'email', 'e', '{}', true, '2026-01-02T03:04:05Z')"
+            ),
+            {"u": uid},
+        )
+    command.upgrade(cfg, "head")
+    with engine.connect() as conn:
+        verified_at, created_at = conn.execute(text("SELECT verified_at, created_at FROM notification_channels")).one()
+    engine.dispose()
+    assert verified_at is not None and verified_at == created_at

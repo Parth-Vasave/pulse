@@ -97,7 +97,11 @@ def seed() -> None:
         db.flush()
         db.add(
             NotificationChannel(
-                user_id=user.id, type="email", name="On-call email", configuration={"address": "oncall@example.com"}
+                user_id=user.id,
+                type="email",
+                name="On-call email",
+                configuration={"address": "oncall@example.com"},
+                verified_at=now,  # demo data: the seeded address is treated as already confirmed
             )
         )
         for name, path, interval, extra in MONITORS:

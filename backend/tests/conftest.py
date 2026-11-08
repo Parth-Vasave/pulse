@@ -98,10 +98,12 @@ def _reset_rate_limiter():
     """Each test starts with empty counters and a fresh async client (TestClient loops are per-test)."""
     import redis
 
-    from app.core import cache, ratelimit
+    from app.core import cache, quota, ratelimit
     from app.core.config import get_settings
 
     ratelimit._client = None
+    quota._client = None
+    quota._local.clear()
     cache._skip_until = 0.0
     cache._local.clear()
     r = redis.Redis.from_url(get_settings().redis_url)
@@ -110,6 +112,7 @@ def _reset_rate_limiter():
             r.delete(key)
     yield
     ratelimit._client = None
+    quota._client = None
 
 
 from tests.worker.conftest import target  # noqa: E402,F401  (shared fixture)

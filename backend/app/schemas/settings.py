@@ -34,8 +34,13 @@ class ChannelOut(BaseModel):
     type: str
     name: str
     enabled: bool
+    verified: bool  # email channels receive nothing until the recipient confirms
     target: str  # masked: secrets in webhook URLs are never echoed back
     created_at: datetime
+
+
+class ChannelVerifyIn(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
 
 
 class ApiKeyCreate(BaseModel):

@@ -22,7 +22,7 @@ Screenshots follow your GitHub theme; the app itself follows your system's light
 - Pluggable response assertions (`body_contains`, `body_not_contains`, `json_field`)
 - Error classification: timeout, DNS, connect, invalid response, unexpected status, HTTP error, assertion failed, slow, blocked target
 - Incident engine: pure state machine, DB-enforced deduplication, full timeline; pausing or re-pointing a monitor closes its open incident and restarts its state (no false recovery alert)
-- Notifications with retry/backoff: email (SMTP), generic webhook, Discord
+- Notifications with retry/backoff: email (SMTP; each address must be confirmed by its recipient), generic webhook, Discord
 - Dashboard: a one-line health headline ("1 monitor is down" / all up), 24 h uptime and active incidents, a last-hour response-time lane per monitor with failures marked in red, and a sortable monitor list (UP / DOWN / PAUSED, recent-check strip, 24 h uptime, response, last check); refreshes every 10 s
 - Monitor page: 1 h/24 h/7 d/30 d charts for response time, time-weighted availability and errors by cause, each with a "Show as table" view; avg/P50/P95/P99; 24 h/7 d/30 d uptime and downtime; every recent check. Monitors carry a short catalog number (`PLS-004`)
 - Incidents list and incident page: root cause, consecutive failures/passes, and a timeline of every state change, check and notification
@@ -63,7 +63,7 @@ Startup order is handled by Compose: Postgres + Redis (healthchecks) → `migrat
 ### Walk-through (the demo)
 1. Open http://localhost:3000, click **Log in** and sign in as the demo user. Charts are pre-populated from seeded history.
 2. **Add monitor** → URL `http://demo-service:9000/switch`, check every 30 s, open incident after 2, resolve after 1.
-3. Add an **email channel** in Settings (use **Send test** and watch Mailpit).
+3. Add an **email channel** in Settings. Pulse emails the address a confirmation link; open it in Mailpit and confirm, then use **Send test**. (The seeded demo channel is already confirmed.)
 4. Open http://localhost:9000 → **Make it fail**. Within ~1 minute the monitor turns **DOWN**, an incident opens, and an email arrives.
 5. **Restore**. After the next passing check the incident resolves automatically; open it for the timeline.
 
