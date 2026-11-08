@@ -46,6 +46,9 @@ def deliver(db: Session, notification_id: int) -> NotificationError | None:
     if channel is None or not channel.enabled or incident is None or monitor is None:
         n.status, n.error_message = "failed", "Channel removed or disabled"
         return None
+    if channel.verified_at is None:  # backstop: such rows are never queued in the first place
+        n.status, n.error_message = "failed", "Channel address not confirmed"
+        return None
 
     n.attempts += 1
     try:

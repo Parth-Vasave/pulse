@@ -45,7 +45,9 @@ def _add_event(db: Session, incident_id: int, at: datetime, kind: str, message: 
 def _queue_notifications(db: Session, incident: Incident, monitor: Monitor, event_type: str) -> list[int]:
     channels = db.scalars(
         select(NotificationChannel).where(
-            NotificationChannel.user_id == monitor.user_id, NotificationChannel.enabled.is_(True)
+            NotificationChannel.user_id == monitor.user_id,
+            NotificationChannel.enabled.is_(True),
+            NotificationChannel.verified_at.is_not(None),  # unconfirmed addresses get nothing
         )
     ).all()
     rows = [Notification(incident_id=incident.id, channel_id=c.id, event_type=event_type) for c in channels]

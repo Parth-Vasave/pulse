@@ -25,9 +25,18 @@ def make_monitor(db, user, **kw) -> Monitor:
     return m
 
 
-def make_channel(db, user, type_="webhook", url="http://target.test/hook", enabled=True) -> NotificationChannel:
+def make_channel(
+    db, user, type_="webhook", url="http://target.test/hook", enabled=True, verified=True
+) -> NotificationChannel:
     cfg = {"address": "ops@example.com"} if type_ == "email" else {"url": url}
-    c = NotificationChannel(user_id=user.id, type=type_, name=f"{type_}-channel", configuration=cfg, enabled=enabled)
+    c = NotificationChannel(
+        user_id=user.id,
+        type=type_,
+        name=f"{type_}-channel",
+        configuration=cfg,
+        enabled=enabled,
+        verified_at=datetime.now(UTC) if verified else None,
+    )
     db.add(c)
     db.commit()
     return c

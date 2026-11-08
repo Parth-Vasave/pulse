@@ -73,7 +73,12 @@ Uptime and `availability` are **time-weighted** (see ARCHITECTURE.md); `error_ra
 | `GET /api/dashboard/summary` | totals, healthy/down/paused, active incidents, `overall_uptime_24h` |
 
 ## Notification channels
-`POST /api/channels` `{type: "email", name, address}` or `{type: "webhook"|"discord", name, url}` · `GET /api/channels` (targets masked) · `PATCH /api/channels/{id}` `{enabled, name}` · `DELETE` · `POST /api/channels/{id}/test` → `{status: "sent"}` or `502`.
+`POST /api/channels` `{type: "email", name, address}` or `{type: "webhook"|"discord", name, url}` · `GET /api/channels` (targets masked; each has `verified`) · `PATCH /api/channels/{id}` `{enabled, name}` · `DELETE` · `POST /api/channels/{id}/test` → `{status: "sent"}`, `409 channel_unverified` or `502`.
+
+**Email channels must be confirmed by the recipient.** A new email channel is created with `verified: false` and Pulse mails the address a link to `/verify-channel#token=…` (valid 48 h). Until someone follows it, the channel gets no alerts and can't be sent a test. Webhook and Discord channels are `verified: true` on creation.
+- `POST /api/channels/{id}/resend-confirmation` → `202 {status: "sent"}`, `409 already_verified`, or `502` if the mail server refused.
+- `POST /api/public/verify-channel` `{token}` → `{status: "verified"}` (idempotent) or `400 invalid_token`. Unauthenticated: the recipient needn't have an account.
+- Per-account hourly caps, `429` with `Retry-After` when exceeded: `CHANNEL_VERIFICATION_EMAILS_PER_HOUR` (default 5) covers creating an email channel and resending its link; `CHANNEL_TESTS_PER_HOUR` (default 10) covers **Send test**.
 
 Webhook payload:
 ```json

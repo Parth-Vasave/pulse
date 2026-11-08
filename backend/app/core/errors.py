@@ -26,8 +26,16 @@ _CODES = {
 
 
 class AppError(Exception):
-    def __init__(self, status_code: int, message: str, code: str | None = None, details: Any = None):
+    def __init__(
+        self,
+        status_code: int,
+        message: str,
+        code: str | None = None,
+        details: Any = None,
+        headers: dict[str, str] | None = None,
+    ):
         self.status_code = status_code
+        self.headers = headers
         self.message = message
         self.code = code or _CODES.get(status_code, "error")
         self.details = details
@@ -46,7 +54,7 @@ def error_response(
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
-        return error_response(exc.status_code, exc.code, exc.message, exc.details)
+        return error_response(exc.status_code, exc.code, exc.message, exc.details, exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
