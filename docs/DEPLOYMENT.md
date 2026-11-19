@@ -97,8 +97,11 @@ A monitoring tool that silently stops is worse than none, so Pulse reports on it
    queues (`queue_depth`), failing notification delivery and a failing heartbeat ping. `docker compose --profile
    monitoring up` loads it into Prometheus on :9090; point your Alertmanager at that Prometheus to route the alerts.
    The production compose file does not run Prometheus: mount the same two files into yours.
-3. **Metrics for dashboards:** `scheduler_last_tick_timestamp_seconds`, `queue_depth{queue}` and
-   `heartbeat_pings_total{outcome}` are exported by the worker on `:9101/metrics`.
+3. **Metrics for dashboards:** the worker exports check volume, check latency, incident, notification, worker job, and
+   self-monitoring metrics (`scheduler_last_tick_timestamp_seconds`, `queue_depth{queue}`,
+   `heartbeat_pings_total{outcome}`) on `:9101/metrics`, while the API exposes `/metrics` on `:8000` for scrape health
+   and runtime stats. See [METRICS.md](METRICS.md) for the full metric reference, label values, units, scrape caveats,
+   and PromQL examples.
 
 The tick runs in the worker (Beat only enqueues it), so a dead Beat shows up as a stale timestamp while the worker
 still looks healthy: that is why the alert watches the timestamp rather than just `up`.
