@@ -60,6 +60,8 @@ docker compose up --build        # or: make dev
 
 Startup order is handled by Compose: Postgres + Redis (healthchecks) → `migrate` (Alembic + seed) → API, worker, scheduler → frontend.
 
+Port already in use, a service stuck unhealthy, or no email in Mailpit? See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 ### Walk-through (the demo)
 1. Open http://localhost:3000, click **Log in** and sign in as the demo user. Charts are pre-populated from seeded history.
 2. **Add monitor** → URL `http://demo-service:9000/switch`, check every 30 s, open incident after 2, resolve after 1.
