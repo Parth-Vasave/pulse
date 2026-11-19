@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { Button, CopyButton, IconButton, SegmentedControl, Toggle } from "@/components/ui";
 
@@ -51,13 +51,41 @@ describe("SegmentedControl", () => {
 });
 
 describe("CopyButton", () => {
+  const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  afterEach(() => {
+    if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+    else Reflect.deleteProperty(navigator, "clipboard");
+  });
+
   it("copies and confirms", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    render(<CopyButton text="apm_secret" label="Copy key" />);
+    render(<CopyButton text="example-value" label="Copy key" />);
     await userEvent.click(screen.getByRole("button", { name: /Copy key/ }));
-    expect(writeText).toHaveBeenCalledWith("apm_secret");
+    expect(writeText).toHaveBeenCalledWith("example-value");
     expect(await screen.findByText("Copied")).toBeInTheDocument();
+  });
+
+  it("announces a clipboard failure, preserves focus, and lets the user retry", async () => {
+    const writeText = vi.fn().mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"))
+      .mockResolvedValueOnce(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<CopyButton text="example-value" label="Copy key" />);
+    const copy = screen.getByRole("button", { name: "Copy key" });
+
+    await userEvent.click(copy);
+
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Could not copy. Select and copy the text manually.");
+    expect(status).not.toHaveTextContent("example-value");
+    expect(copy).toHaveFocus();
+    expect(copy).toBeEnabled();
+
+    await userEvent.click(copy);
+
+    expect(await screen.findByRole("button", { name: "Copied" })).toHaveFocus();
+    expect(status).toBeEmptyDOMElement();
+    expect(writeText).toHaveBeenCalledTimes(2);
   });
 });
 
