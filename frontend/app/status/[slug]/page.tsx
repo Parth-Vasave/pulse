@@ -46,7 +46,7 @@ export default function PublicStatusPage() {
           return (
             <li key={c.name} className="flex items-center justify-between gap-4 border-b border-line py-4">
               <div className="min-w-0">
-                <div className="truncate font-medium">{c.name}</div>
+                <div className="wrap-anywhere font-medium">{c.name}</div>
                 <div className="mt-0.5 text-sm text-muted">30-day uptime <span className="font-mono text-ink-2">{formatPercent(c.uptime_30d)}</span></div>
               </div>
               <span className={`inline-flex shrink-0 items-center gap-1.5 text-[15px] ${l.cls}`}>
@@ -64,8 +64,8 @@ export default function PublicStatusPage() {
           {data.incidents.map((i, n) => (
             <li key={n} className="border-b border-line py-4 text-[15px]">
               <div className="flex items-center justify-between gap-4">
-                <span className="font-medium">{i.monitor}</span>
-                <span className={`inline-flex items-center gap-1.5 ${i.status === "open" ? "text-down" : "text-ink-2"}`}>
+                <span className="min-w-0 wrap-anywhere font-medium">{i.monitor}</span>
+                <span className={`inline-flex shrink-0 items-center gap-1.5 ${i.status === "open" ? "text-down" : "text-ink-2"}`}>
                   {i.status === "open" ? <FailMark /> : <PassMark className="text-muted" />}{i.status === "open" ? "Ongoing" : "Resolved"}
                 </span>
               </div>
