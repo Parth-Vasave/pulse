@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Heartbeat } from "@/components/Heartbeat";
 import { HealthBanner } from "@/components/HealthBanner";
 import { PulsarPlot } from "@/components/PulsarPlot";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PauseIcon, PencilIcon, PlayIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import { useToast } from "@/components/Toast";
-import { ConfirmDialog, EmptyState, ErrorState, IconButton, LinkButton, MenuSelect, SkeletonRows, StaleNotice } from "@/components/ui";
+import { Button, ConfirmDialog, EmptyState, ErrorState, Field, IconButton, LinkButton, MenuSelect, SkeletonRows, StaleNotice, inputClass } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api, describeError } from "@/lib/api";
 import { MONITOR_SORTS, type MonitorSort, catalogNo, formatMs, formatPercent, timeAgo } from "@/lib/format";
@@ -23,7 +23,16 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [active, setActive] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<MonitorSort>("status");
+  const [nameFilter, setNameFilter] = useState("");
+  const filterInput = useRef<HTMLInputElement>(null);
   const sorted = useMemo(() => [...(monitors.data ?? [])].sort(MONITOR_SORTS[sortBy].compare), [monitors.data, sortBy]);
+  const search = nameFilter.trim().toLowerCase();
+  const matching = search ? sorted.filter((monitor) => monitor.name.toLowerCase().includes(search)) : sorted;
+
+  function clearFilter() {
+    setNameFilter("");
+    filterInput.current?.focus();
+  }
 
   async function toggle(m: Monitor) {
     try {
@@ -70,11 +79,22 @@ export default function Dashboard() {
           <MenuSelect label="Sorted by" value={sortBy} onChange={setSortBy}
             options={(Object.keys(MONITOR_SORTS) as MonitorSort[]).map((k) => ({ value: k, label: MONITOR_SORTS[k].label }))} />
         </div>
+        {(sorted.length > 0 || nameFilter) && (
+          <div className="my-4 flex flex-wrap items-end gap-3">
+            <Field label="Filter monitors by name" htmlFor="monitor-name-filter">
+              <input id="monitor-name-filter" ref={filterInput} type="search" className={inputClass}
+                value={nameFilter} onChange={(event) => setNameFilter(event.target.value)} />
+            </Field>
+            {nameFilter && <Button onClick={clearFilter}>Clear filter</Button>}
+          </div>
+        )}
         {monitors.loading && !monitors.data ? <SkeletonRows rows={5} /> :
          monitors.error && !monitors.data ? <div className="pt-4"><ErrorState message="Could not load monitors." onRetry={monitors.reload} /></div> :
          monitors.data?.length === 0 ? (
           <EmptyState title="Monitor your first API" body="Add a URL and Pulse checks it on a schedule, opens an incident when it fails repeatedly, and alerts you when it recovers."
             action={addButton} />
+         ) : search && matching.length === 0 ? (
+          <p role="status" className="py-10 text-[15px] text-muted">No monitors match your filter</p>
          ) : (
           <div className="relative -mx-4 overflow-x-auto px-4">
             <table className="w-full text-left text-[15px] md:min-w-[56rem]">
@@ -91,7 +111,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((m) => (
+                {matching.map((m) => (
                   <tr key={m.id} onPointerEnter={(e) => { if (e.pointerType === "mouse") setActive(m.id); }} onPointerLeave={() => setActive(null)}
                     className={`group border-b border-line transition-colors duration-150 ${active === m.id ? "bg-raised/60" : ""}`}>
                     <td className="max-w-[20rem] py-3 pr-4 max-sm:max-w-[9.5rem]">
