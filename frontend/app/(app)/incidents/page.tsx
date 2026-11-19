@@ -7,10 +7,11 @@ import { useApi } from "@/hooks/useApi";
 import { formatDuration, formatTime } from "@/lib/format";
 import type { Incident } from "@/lib/types";
 
-function IncidentTable({ items }: { items: Incident[] }) {
+function IncidentTable({ caption, items }: { caption: string; items: Incident[] }) {
   return (
     <div className="relative -mx-4 overflow-x-auto px-4">
       <table className="w-full min-w-[40rem] text-left text-[15px]">
+        <caption className="sr-only">{caption}</caption>
         <thead>
           <tr className="border-b border-line">
             <th scope="col" className="caps py-2 pr-4 font-normal">Monitor</th>
@@ -48,11 +49,11 @@ export default function Incidents() {
       <PageHeader title="Incidents" sub="An incident opens after repeated failed checks and resolves automatically when the API recovers." />
       <Section title="Active" description={open.data?.length ? `${open.data.length} ongoing` : undefined}>
         {open.loading && !open.data ? <SkeletonRows rows={2} /> : open.error && !open.data ? <ErrorState message="Could not load incidents." onRetry={open.reload} /> :
-          open.data?.length ? <IncidentTable items={open.data} /> : <EmptyState title="No active incidents" body="Everything you monitor is responding as expected." />}
+          open.data?.length ? <IncidentTable caption="Active incidents" items={open.data} /> : <EmptyState title="No active incidents" body="Everything you monitor is responding as expected." />}
       </Section>
       <Section className="mt-12" title="Resolved" description="The last 50, newest first.">
         {resolved.loading && !resolved.data ? <SkeletonRows rows={4} /> : resolved.error && !resolved.data ? <ErrorState message="Could not load incidents." onRetry={resolved.reload} /> :
-          resolved.data?.length ? <IncidentTable items={resolved.data} /> : <EmptyState title="No resolved incidents yet" body="Past outages appear here with their duration and cause." />}
+          resolved.data?.length ? <IncidentTable caption="Resolved incidents" items={resolved.data} /> : <EmptyState title="No resolved incidents yet" body="Past outages appear here with their duration and cause." />}
       </Section>
     </>
   );
