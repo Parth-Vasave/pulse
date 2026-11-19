@@ -26,6 +26,7 @@ export default function PublicStatusPage() {
   const { data, error, loading, reload, updatedAt } = useApi<PublicStatus>(`/public/status/${slug}`, 30000);
   if (loading && !data) return <main className="mx-auto max-w-2xl px-4"><Spinner /></main>;
   if (!data) return <main className="mx-auto max-w-2xl px-4 py-16"><ErrorState message={loadErrorMessage(error, "This status page doesn’t exist or isn’t public.")} onRetry={reload} /></main>;
+  const refreshedAt = updatedAt === undefined ? undefined : new Date(updatedAt).toISOString();
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 sm:py-16">
       <div className="mb-14 flex items-center justify-between">
@@ -39,6 +40,9 @@ export default function PublicStatusPage() {
         <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${DOT[data.overall_status]}`} aria-hidden />
         {HEADLINE[data.overall_status]}
       </p>
+      {refreshedAt && (
+        <p className="mt-2 text-sm text-muted">Last refreshed <time dateTime={refreshedAt}>{formatTime(refreshedAt, true)}</time></p>
+      )}
 
       <ul className="mt-10 border-t border-line">
         {data.components.map((c) => {
