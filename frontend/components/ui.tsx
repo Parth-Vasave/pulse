@@ -52,18 +52,40 @@ export function IconButton({ label, variant = "ghost", className = "", children,
 }
 
 export function CopyButton({ text, label = "Copy", size = "sm", variant = "secondary" }: { text: string; label?: string; size?: Size; variant?: Variant }) {
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<"copied" | "failed" | null>(null);
+  const attempt = useRef(0);
+  const reset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => {
+    attempt.current++;
+    clearTimeout(reset.current);
+  }, []);
+
   async function copy() {
+    const current = ++attempt.current;
+    let outcome: "copied" | "failed";
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch { /* clipboard unavailable (insecure context): user can still select the text */ }
+      outcome = "copied";
+    } catch {
+      outcome = "failed";
+    }
+    if (current !== attempt.current) return;
+    clearTimeout(reset.current);
+    setResult(outcome);
+    if (outcome === "copied") reset.current = setTimeout(() => setResult(null), 1800);
   }
+
+  const copied = result === "copied";
+  const failed = result === "failed";
   return (
-    <Button size={size} variant={variant} onClick={copy} icon={copied ? <CheckIcon /> : <CopyIcon />} aria-live="polite">
-      {copied ? "Copied" : label}
-    </Button>
+    <span className="inline-flex min-w-0 flex-col items-start gap-1">
+      <Button size={size} variant={variant} onClick={copy} icon={copied ? <CheckIcon /> : <CopyIcon />} aria-live="polite">
+        {copied ? "Copied" : label}
+      </Button>
+      <span role="status" className={failed ? "max-w-40 text-xs text-down" : "sr-only"}>
+        {failed ? "Could not copy. Select and copy the text manually." : null}
+      </span>
+    </span>
   );
 }
 
