@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     trusted_proxy_count: int = 1
     rate_limit_per_minute: int = 120
     auth_rate_limit_per_minute: int = 10
+    # Per-user hourly caps on mail and requests a user can make Pulse send on demand: confirmation emails to new
+    # addresses, and "Send test" deliveries.
+    channel_verification_emails_per_hour: int = 5
+    channel_tests_per_hour: int = 10
 
     # Result retention
     check_retention_days: int = 35

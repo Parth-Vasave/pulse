@@ -7,10 +7,14 @@ from sqlalchemy.orm import Session
 from app.core import cache
 from app.core.database import get_db
 from app.core.errors import AppError
-from app.models import Incident, Monitor, User
+from app.core.logging import get_logger
+from app.models import Incident, Monitor, NotificationChannel, User
 from app.repositories import stats
+from app.schemas.settings import ChannelVerifyIn
+from app.services import channel_verification
 
 router = APIRouter(prefix="/api/public", tags=["public"])
+log = get_logger("app.public")
 # 30 days of time-weighted uptime scans every retained check of every listed monitor (~1.6 s of DB time
 # for 20 monitors at a 30 s interval), and this endpoint is unauthenticated. One minute of lag moves a
 # 30-day figure by at most 0.0023 points; component status and incidents stay live. When the figures
@@ -80,3 +84,17 @@ def public_status(slug: str, db: Session = Depends(get_db)):
             for i, name in incidents
         ],
     }
+
+
+@router.post("/verify-channel")
+def verify_channel(data: ChannelVerifyIn, db: Session = Depends(get_db)):
+    """Unauthenticated: whoever holds the inbox confirms, and that need not be the account owner."""
+    claims = channel_verification.read_token(data.token)
+    channel = db.get(NotificationChannel, claims[0]) if claims else None
+    if claims is None or channel is None or not channel_verification.token_matches(channel, claims[1]):
+        raise AppError(400, "This confirmation link is invalid or has expired", code="invalid_token")
+    if channel.verified_at is None:
+        channel.verified_at = datetime.now(UTC)
+        db.commit()
+        log.info("channel_verified", extra={"channel_id": channel.id})
+    return {"status": "verified"}

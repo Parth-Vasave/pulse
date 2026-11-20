@@ -107,6 +107,8 @@ export interface Channel {
   type: "email" | "webhook" | "discord";
   name: string;
   enabled: boolean;
+  /** Email channels receive nothing until the recipient follows the confirmation link. */
+  verified: boolean;
   target: string;
 }
 

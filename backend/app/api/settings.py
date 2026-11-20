@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.core.logging import get_logger
+from app.core.quota import enforce
 from app.core.security import generate_api_key
 from app.models import ApiKey, NotificationChannel, User
 from app.schemas.settings import (
@@ -21,6 +22,7 @@ from app.schemas.settings import (
     ChannelUpdate,
     StatusPageSettings,
 )
+from app.services import channel_verification
 from app.services.notifications.base import IncidentMessage, NotificationError
 from app.services.notifications.providers import get_provider
 from app.services.ssrf import SSRFError, validate_url
@@ -38,7 +40,19 @@ def _mask(channel: NotificationChannel) -> str:
 
 
 def _channel_out(c: NotificationChannel) -> ChannelOut:
-    return ChannelOut(id=c.id, type=c.type, name=c.name, enabled=c.enabled, target=_mask(c), created_at=c.created_at)
+    return ChannelOut(
+        id=c.id,
+        type=c.type,
+        name=c.name,
+        enabled=c.enabled,
+        verified=c.verified_at is not None,
+        target=_mask(c),
+        created_at=c.created_at,
+    )
+
+
+def _limit_confirmation_emails(user: User) -> None:
+    enforce(f"verify-email:{user.id}", get_settings().channel_verification_emails_per_hour, "confirmation emails")
 
 
 def _owned_channel(db: Session, user: User, channel_id: int) -> NotificationChannel:
@@ -65,20 +79,43 @@ def create_channel(data: ChannelCreate, user: User = Depends(get_current_user), 
     )
     if (count or 0) >= get_settings().max_channels_per_user:
         raise AppError(409, "Channel limit reached", code="limit_reached")
+    now = datetime.now(UTC)
     if data.type == "email":
+        # Checked before the row exists, so hitting the cap doesn't leave a channel nobody was asked to confirm.
+        _limit_confirmation_emails(user)
         config = {"address": data.address}
+        verified_at = None  # the recipient must confirm before anything is sent there
     else:
         try:
             validate_url(data.url or "")
         except SSRFError as exc:
             raise AppError(422, f"URL not allowed: {exc}", code="invalid_target") from exc
         config = {"url": data.url}
+        verified_at = now
     channel = NotificationChannel(
-        user_id=user.id, type=data.type, name=data.name, configuration=config, enabled=data.enabled
+        user_id=user.id,
+        type=data.type,
+        name=data.name,
+        configuration=config,
+        enabled=data.enabled,
+        verified_at=verified_at,
     )
     db.add(channel)
     db.commit()
+    if channel.verified_at is None:
+        channel_verification.send_confirmation(channel)  # on failure the UI offers "Resend link"
     return _channel_out(channel)
+
+
+@router.post("/channels/{channel_id}/resend-confirmation", status_code=202)
+def resend_confirmation(channel_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    channel = _owned_channel(db, user, channel_id)
+    if channel.verified_at is not None:
+        raise AppError(409, "This channel is already confirmed", code="already_verified")
+    _limit_confirmation_emails(user)
+    if not channel_verification.send_confirmation(channel):
+        raise AppError(502, "Could not send the confirmation email. Try again later.", code="delivery_failed")
+    return {"status": "sent"}
 
 
 @router.patch("/channels/{channel_id}", response_model=ChannelOut)
@@ -102,6 +139,9 @@ def delete_channel(channel_id: int, user: User = Depends(get_current_user), db: 
 @router.post("/channels/{channel_id}/test", status_code=200)
 def test_channel(channel_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     channel = _owned_channel(db, user, channel_id)
+    if channel.verified_at is None:
+        raise AppError(409, "Confirm this address first: follow the link we emailed to it", code="channel_unverified")
+    enforce(f"channel-test:{user.id}", get_settings().channel_tests_per_hour, "test notifications")
     now = datetime.now(UTC)
     message = IncidentMessage(
         "created", 0, "Test monitor", "https://example.com/health", "This is a test notification", now
