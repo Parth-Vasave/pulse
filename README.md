@@ -33,6 +33,9 @@ Screenshots follow your GitHub theme; the app itself follows your system's light
 - Security: Argon2, HttpOnly cookies, tenant isolation, **SSRF protection with DNS-rebinding defence**, **secrets (monitor headers, webhook URLs) encrypted at rest** with key rotation, rate limiting, security headers, request limits
 - Observability: structured JSON logs, Prometheus metrics, `/health`, `/ready`; **Pulse monitors itself**: scheduler-tick and queue-depth metrics, ready-made Prometheus alert rules, and an optional dead-man's-switch ping
 
+## Contributing
+New here? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Architecture
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): service layout, scheduling, incident state machine, failure handling, and the design rationale (why Redis/Celery/Postgres, how incidents are deduplicated, how SSRF/tenancy/retries work).
 
