@@ -81,7 +81,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2.11.7-alpine
+    image: caddy:2.11.9-alpine
     # Automatic HTTPS for $DOMAIN (Let's Encrypt). X-Forwarded-For is SET, not appended, to the address Caddy
     # actually saw, so a client-supplied header can never reach the API's rate limiter.
     command:
